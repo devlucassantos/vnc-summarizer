@@ -1,0 +1,9 @@
+basePath: /api/v1
+info:
+  contact: {}
+  description: Este repositório é responsável pela escrita dos dados nas bases de
+    dados da Plataforma Você na Câmara.
+  title: VNC Write API
+  version: v1
+paths: {}
+swagger: "2.0"

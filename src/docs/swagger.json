@@ -1,0 +1,11 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Este repositório é responsável pela escrita dos dados nas bases de dados da Plataforma Você na Câmara.",
+        "title": "VNC Write API",
+        "contact": {},
+        "version": "v1"
+    },
+    "basePath": "/api/v1",
+    "paths": {}
+}
