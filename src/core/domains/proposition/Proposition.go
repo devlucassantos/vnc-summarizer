@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"time"
 	"vnc-write-api/core/domains/deputy"
-	"vnc-write-api/core/domains/keyword"
 	"vnc-write-api/core/domains/organization"
 )
 
@@ -14,11 +13,11 @@ type Proposition struct {
 	code            int
 	originalTextUrl string
 	title           string
-	summary         string
+	content         string
 	submittedAt     time.Time
+	imageUrl        string
 	deputies        []deputy.Deputy
 	organizations   []organization.Organization
-	keywords        []keyword.Keyword
 	active          bool
 	createdAt       time.Time
 	updatedAt       time.Time
@@ -44,12 +43,16 @@ func (instance *Proposition) Title() string {
 	return instance.title
 }
 
-func (instance *Proposition) Summary() string {
-	return instance.summary
+func (instance *Proposition) Content() string {
+	return instance.content
 }
 
 func (instance *Proposition) SubmittedAt() time.Time {
 	return instance.submittedAt
+}
+
+func (instance *Proposition) ImageUrl() string {
+	return instance.imageUrl
 }
 
 func (instance *Proposition) Deputies() []deputy.Deputy {
@@ -58,10 +61,6 @@ func (instance *Proposition) Deputies() []deputy.Deputy {
 
 func (instance *Proposition) Organizations() []organization.Organization {
 	return instance.organizations
-}
-
-func (instance *Proposition) Keywords() []keyword.Keyword {
-	return instance.keywords
 }
 
 func (instance *Proposition) Active() bool {

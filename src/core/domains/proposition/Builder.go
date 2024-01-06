@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 	"vnc-write-api/core/domains/deputy"
-	"vnc-write-api/core/domains/keyword"
 	"vnc-write-api/core/domains/organization"
 )
 
@@ -57,13 +56,13 @@ func (instance *builder) OriginalTextUrl(originalTextUrl string) *builder {
 	return instance
 }
 
-func (instance *builder) Summary(summary string) *builder {
-	summary = strings.TrimSpace(summary)
-	if len(summary) == 0 {
-		instance.invalidFields = append(instance.invalidFields, "O resumo da proposição é inválido")
+func (instance *builder) Content(content string) *builder {
+	content = strings.TrimSpace(content)
+	if len(content) == 0 {
+		instance.invalidFields = append(instance.invalidFields, "O conteúdo do resumo da proposição é inválido")
 		return instance
 	}
-	instance.proposition.summary = summary
+	instance.proposition.content = content
 	return instance
 }
 
@@ -76,6 +75,16 @@ func (instance *builder) SubmittedAt(submittedAt time.Time) *builder {
 	return instance
 }
 
+func (instance *builder) ImageUrl(imageUrl string) *builder {
+	imageUrl = strings.Trim(imageUrl, "/")
+	if len(imageUrl) == 0 {
+		instance.invalidFields = append(instance.invalidFields, "A URL da imagem da proposição é inválida")
+		return instance
+	}
+	instance.proposition.imageUrl = imageUrl
+	return instance
+}
+
 func (instance *builder) Deputies(deputies []deputy.Deputy) *builder {
 	instance.proposition.deputies = deputies
 	return instance
@@ -83,11 +92,6 @@ func (instance *builder) Deputies(deputies []deputy.Deputy) *builder {
 
 func (instance *builder) Organizations(organizations []organization.Organization) *builder {
 	instance.proposition.organizations = organizations
-	return instance
-}
-
-func (instance *builder) Keywords(keywords []keyword.Keyword) *builder {
-	instance.proposition.keywords = keywords
 	return instance
 }
 
@@ -118,6 +122,5 @@ func (instance *builder) Build() (*Proposition, error) {
 	if len(instance.invalidFields) > 0 {
 		return nil, errors.New(strings.Join(instance.invalidFields, ";"))
 	}
-
 	return instance.proposition, nil
 }

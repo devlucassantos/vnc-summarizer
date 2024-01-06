@@ -8,16 +8,17 @@ import (
 )
 
 type Deputy struct {
-	id            uuid.UUID
-	code          int
-	cpf           string
-	name          string
-	electoralName string
-	imageUrl      string
-	currentParty  party.Party
-	active        bool
-	createdAt     time.Time
-	updatedAt     time.Time
+	id                    uuid.UUID
+	code                  int
+	cpf                   string
+	name                  string
+	electoralName         string
+	imageUrl              string
+	party                 party.Party
+	partyInTheProposition party.Party
+	active                bool
+	createdAt             time.Time
+	updatedAt             time.Time
 }
 
 func (instance *Deputy) NewUpdater() *builder {
@@ -48,8 +49,12 @@ func (instance *Deputy) ImageUrl() string {
 	return instance.imageUrl
 }
 
-func (instance *Deputy) CurrentParty() party.Party {
-	return instance.currentParty
+func (instance *Deputy) Party() party.Party {
+	return instance.party
+}
+
+func (instance *Deputy) PartyInTheProposition() party.Party {
+	return instance.partyInTheProposition
 }
 
 func (instance *Deputy) Active() bool {
@@ -70,7 +75,7 @@ func (instance *Deputy) IsEqual(deputy Deputy) bool {
 		instance.name == deputy.name &&
 		instance.electoralName == deputy.electoralName &&
 		instance.imageUrl == deputy.imageUrl &&
-		instance.currentParty.Code() == deputy.currentParty.Code()
+		instance.party.Code() == deputy.party.Code()
 }
 
 func (instance *Deputy) IsZero() bool {

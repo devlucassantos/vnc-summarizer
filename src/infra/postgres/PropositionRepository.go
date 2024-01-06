@@ -3,7 +3,9 @@ package postgres
 import (
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
+	"time"
 	"vnc-write-api/core/domains/proposition"
+	"vnc-write-api/infra/dto"
 	"vnc-write-api/infra/postgres/queries"
 )
 
@@ -33,7 +35,7 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 
 	var propositionId uuid.UUID
 	err = transaction.QueryRow(queries.Proposition().Insert(), proposition.Code(), proposition.OriginalTextUrl(),
-		proposition.Title(), proposition.Summary(), proposition.SubmittedAt()).Scan(&propositionId)
+		proposition.Title(), proposition.Content(), proposition.SubmittedAt()).Scan(&propositionId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar a proposição %d: %s", proposition.Code(), err.Error())
 		return nil, err
@@ -41,9 +43,9 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 
 	for _, deputyData := range proposition.Deputies() {
 		var propositionAuthorId uuid.UUID
-		currentParty := deputyData.CurrentParty()
+		deputyParty := deputyData.Party()
 		err = transaction.QueryRow(queries.PropositionAuthor().InsertDeputy(), propositionId, deputyData.Id(),
-			currentParty.Id()).Scan(&propositionAuthorId)
+			deputyParty.Id()).Scan(&propositionAuthorId)
 		if err != nil {
 			log.Errorf("Erro ao cadastrar deputado(a) %s como autor(a) da proposição %d: %s", deputyData.Id(),
 				proposition.Code(), err.Error())
@@ -68,15 +70,11 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 			proposition.Code(), propositionAuthorId)
 	}
 
-	for _, keywordData := range proposition.Keywords() {
-		err = transaction.QueryRow(queries.PropositionKeyword().Insert(), propositionId, keywordData.Id()).Err()
-		if err != nil {
-			log.Errorf("Erro ao cadastrar palavra-chave %s para a proposição %d: %s", keywordData.Id(),
-				proposition.Code(), err.Error())
-			continue
-		}
-
-		log.Infof("Palavra-chave %s cadastrada para a proposição %d", keywordData.Id(), proposition.Code())
+	var newsId uuid.UUID
+	err = transaction.QueryRow(queries.News().InsertProposition(), propositionId).Scan(&newsId)
+	if err != nil {
+		log.Errorf("Erro ao cadastrar a proposição %d como matéria: %s", proposition.Code(), err.Error())
+		return nil, err
 	}
 
 	err = transaction.Commit()
@@ -85,8 +83,47 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 		return nil, err
 	}
 
-	log.Infof("Proposição %d registrada com sucesso com o ID %s", proposition.Code(), propositionId)
+	log.Infof("Proposição %d registrada com sucesso com o ID %s (ID da Matéria: %s)",
+		proposition.Code(), propositionId, newsId)
 	return &propositionId, nil
+}
+
+func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition.Proposition, error) {
+	postgresConnection, err := instance.connectionManager.createConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer instance.connectionManager.endConnection(postgresConnection)
+
+	var propositions []dto.Proposition
+	err = postgresConnection.Select(&propositions, queries.Proposition().Select().ByDate(), date)
+	if err != nil {
+		log.Error("Erro ao obter os dados das proposições por data no banco de dados: ", err.Error())
+		return nil, err
+	}
+
+	var propositionData []proposition.Proposition
+	for _, propositionDetails := range propositions {
+		propositionDomain, err := proposition.NewBuilder().
+			Id(propositionDetails.Id).
+			Code(propositionDetails.Code).
+			OriginalTextUrl(propositionDetails.OriginalTextUrl).
+			Title(propositionDetails.Title).
+			Content(propositionDetails.Content).
+			SubmittedAt(propositionDetails.SubmittedAt).
+			Active(propositionDetails.Active).
+			CreatedAt(propositionDetails.CreatedAt).
+			UpdatedAt(propositionDetails.UpdatedAt).
+			Build()
+		if err != nil {
+			log.Errorf("Erro construindo a estrutura de dados da proposição %s: %s", propositionDetails, err.Error())
+			return nil, err
+		}
+
+		propositionData = append(propositionData, *propositionDomain)
+	}
+
+	return propositionData, nil
 }
 
 func (instance Proposition) GetLatestPropositionCodes() ([]int, error) {

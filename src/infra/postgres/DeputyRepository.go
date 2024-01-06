@@ -28,9 +28,9 @@ func (instance Deputy) CreateDeputy(deputy deputy.Deputy) (*uuid.UUID, error) {
 	defer instance.connectionManager.endConnection(postgresConnection)
 
 	var deputyId uuid.UUID
-	currentParty := deputy.CurrentParty()
+	deputyParty := deputy.Party()
 	err = postgresConnection.QueryRow(queries.Deputy().Insert(), deputy.Code(), deputy.Cpf(), deputy.Name(),
-		deputy.ElectoralName(), deputy.ImageUrl(), currentParty.Id()).Scan(&deputyId)
+		deputy.ElectoralName(), deputy.ImageUrl(), deputyParty.Id()).Scan(&deputyId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar o(a) deputado(a) %d: %s", deputy.Code(), err.Error())
 		return nil, err
@@ -47,9 +47,9 @@ func (instance Deputy) UpdateDeputy(deputy deputy.Deputy) error {
 	}
 	defer instance.connectionManager.endConnection(postgresConnection)
 
-	currentParty := deputy.CurrentParty()
+	deputyParty := deputy.Party()
 	_, err = postgresConnection.Exec(queries.Deputy().Update(), deputy.Name(), deputy.ElectoralName(),
-		deputy.ImageUrl(), currentParty.Id(), deputy.Code())
+		deputy.ImageUrl(), deputyParty.Id(), deputy.Code())
 	if err != nil {
 		log.Errorf("Erro ao atualizar o(a) deputado(a) %d: %s", deputy.Code(), err.Error())
 		return err
@@ -77,7 +77,7 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		return nil, err
 	}
 
-	currentParty, err := party.NewBuilder().
+	deputyParty, err := party.NewBuilder().
 		Id(deputyData.Party.Id).
 		Code(deputyData.Party.Code).
 		Name(deputyData.Party.Name).
@@ -100,7 +100,7 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		Name(deputyData.Name).
 		ElectoralName(deputyData.ElectoralName).
 		ImageUrl(deputyData.ImageUrl).
-		CurrentParty(*currentParty).
+		Party(*deputyParty).
 		Active(deputyData.Active).
 		CreatedAt(deputyData.CreatedAt).
 		UpdatedAt(deputyData.UpdatedAt).

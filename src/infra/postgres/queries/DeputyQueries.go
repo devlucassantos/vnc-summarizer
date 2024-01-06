@@ -7,13 +7,13 @@ func Deputy() *deputySqlManager {
 }
 
 func (deputySqlManager) Insert() string {
-	return `INSERT INTO deputy(code, cpf, name, electoral_name, image_url, current_party_id)
+	return `INSERT INTO deputy(code, cpf, name, electoral_name, image_url, party_id)
 			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 }
 
 func (deputySqlManager) Update() string {
 	return `UPDATE deputy SET name = COALESCE($1, name), electoral_name = COALESCE($2, electoral_name),
-                  image_url = COALESCE($3, image_url), current_party_id = COALESCE($4, current_party_id),
+                  image_url = COALESCE($3, image_url), party_id = COALESCE($4, party_id),
                   updated_at = NOW()
             WHERE active = true AND code = $5`
 }
@@ -44,6 +44,6 @@ func (deputySelectSqlManager) ByCode() string {
         		COALESCE(party.created_at, '1970-01-01 00:00:00') AS party_created_at,
         		COALESCE(party.updated_at, '1970-01-01 00:00:00') AS party_updated_at
 			FROM deputy
-			INNER JOIN party on party.id = deputy.current_party_id
+				INNER JOIN party on party.id = deputy.party_id
 			WHERE deputy.active = true AND deputy.code = $1`
 }

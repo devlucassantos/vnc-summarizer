@@ -10,8 +10,9 @@ type Organization struct {
 	id        uuid.UUID
 	code      int
 	name      string
-	acronym   string
 	nickname  string
+	acronym   string
+	_type     string
 	active    bool
 	createdAt time.Time
 	updatedAt time.Time
@@ -39,6 +40,10 @@ func (instance *Organization) Nickname() string {
 
 func (instance *Organization) Acronym() string {
 	return instance.acronym
+}
+
+func (instance *Organization) Type() string {
+	return instance._type
 }
 
 func (instance *Organization) Active() bool {

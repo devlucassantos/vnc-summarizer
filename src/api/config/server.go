@@ -32,5 +32,8 @@ func getBackgroundData() {
 
 	for range time.NewTicker(time.Hour).C {
 		backgroundDataService.RegisterNewPropositions()
+		if time.Now().Hour() == 4 {
+			backgroundDataService.RegisterNewNewsletter()
+		}
 	}
 }
