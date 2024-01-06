@@ -56,7 +56,7 @@ func (instance *builder) Views(views int) *builder {
 func (instance *builder) Type(_type string) *builder {
 	_type = strings.TrimSpace(_type)
 	if len(_type) == 0 {
-		instance.invalidFields = append(instance.invalidFields, "O tipo da organização é inválido")
+		instance.invalidFields = append(instance.invalidFields, "O tipo da matéria é inválido")
 		return instance
 	}
 	instance.news._type = _type
