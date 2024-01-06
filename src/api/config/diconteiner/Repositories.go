@@ -13,10 +13,6 @@ func GetDeputyPostgresRepository() repositories.Deputy {
 	return postgres.NewDeputyRepository(GetPostgresDatabaseManager())
 }
 
-func GetKeywordPostgresRepository() repositories.Keyword {
-	return postgres.NewKeywordRepository(GetPostgresDatabaseManager())
-}
-
 func GetOrganizationPostgresRepository() repositories.Organization {
 	return postgres.NewOrganizationRepository(GetPostgresDatabaseManager())
 }
@@ -27,4 +23,8 @@ func GetPartyPostgresRepository() repositories.Party {
 
 func GetPropositionPostgresRepository() repositories.Proposition {
 	return postgres.NewPropositionRepository(GetPostgresDatabaseManager())
+}
+
+func GetNewsletterPostgresRepository() repositories.Newsletter {
+	return postgres.NewNewsletterRepository(GetPostgresDatabaseManager())
 }

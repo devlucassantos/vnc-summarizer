@@ -65,8 +65,13 @@ func (instance *builder) ImageUrl(imageUrl string) *builder {
 	return instance
 }
 
-func (instance *builder) CurrentParty(party party.Party) *builder {
-	instance.deputy.currentParty = party
+func (instance *builder) Party(party party.Party) *builder {
+	instance.deputy.party = party
+	return instance
+}
+
+func (instance *builder) PartyInTheProposition(party party.Party) *builder {
+	instance.deputy.partyInTheProposition = party
 	return instance
 }
 
@@ -97,6 +102,5 @@ func (instance *builder) Build() (*Deputy, error) {
 	if len(instance.invalidFields) > 0 {
 		return nil, errors.New(strings.Join(instance.invalidFields, ";"))
 	}
-
 	return instance.deputy, nil
 }

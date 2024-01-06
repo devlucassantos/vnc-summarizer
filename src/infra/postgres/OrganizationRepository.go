@@ -26,15 +26,21 @@ func (instance Organization) CreateOrganization(organization organization.Organi
 	}
 	defer instance.connectionManager.endConnection(postgresConnection)
 
+	var code *int
+	organizationCode := organization.Code()
+	if organizationCode > 0 {
+		code = &organizationCode
+	}
+
 	var organizationId uuid.UUID
-	err = postgresConnection.QueryRow(queries.Organization().Insert(), organization.Code(), organization.Name(),
-		organization.Acronym(), organization.Nickname()).Scan(&organizationId)
+	err = postgresConnection.QueryRow(queries.Organization().Insert(), code, organization.Name(),
+		organization.Acronym(), organization.Nickname(), organization.Type()).Scan(&organizationId)
 	if err != nil {
-		log.Errorf("Erro ao cadastrar a organização %d: %s", organization.Code(), err.Error())
+		log.Errorf("Erro ao cadastrar a organização %s: %s", organization.Name(), err.Error())
 		return nil, err
 	}
 
-	log.Infof("Organização %d registrada com sucesso com o ID %s", organization.Code(), organizationId)
+	log.Infof("Organização %s registrada com sucesso com o ID %s", organization.Name(), organizationId)
 	return &organizationId, nil
 }
 
@@ -45,18 +51,23 @@ func (instance Organization) UpdateOrganization(organization organization.Organi
 	}
 	defer instance.connectionManager.endConnection(postgresConnection)
 
-	_, err = postgresConnection.Exec(queries.Organization().Update(), organization.Name(), organization.Acronym(),
-		organization.Nickname(), organization.Code())
+	if organization.Code() > 0 {
+		_, err = postgresConnection.Exec(queries.Organization().UpdateByCode(), organization.Name(), organization.Acronym(),
+			organization.Nickname(), organization.Type(), organization.Code())
+	} else {
+		_, err = postgresConnection.Exec(queries.Organization().UpdateByNameAndType(), organization.Acronym(),
+			organization.Nickname(), organization.Name(), organization.Type())
+	}
 	if err != nil {
-		log.Errorf("Erro ao atualizar a organização %d: %s", organization.Code(), err.Error())
+		log.Errorf("Erro ao atualizar a organização %s: %s", organization.Name(), err.Error())
 		return err
 	}
 
-	log.Infof("Dados da organização %d atualizados com sucesso", organization.Code())
+	log.Infof("Dados da organização %s atualizados com sucesso", organization.Name())
 	return nil
 }
 
-func (instance Organization) GetOrganizationByCode(code int) (*organization.Organization, error) {
+func (instance Organization) GetOrganization(org organization.Organization) (*organization.Organization, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
 		return nil, err
@@ -64,19 +75,28 @@ func (instance Organization) GetOrganizationByCode(code int) (*organization.Orga
 	defer instance.connectionManager.endConnection(postgresConnection)
 
 	var organizationData dto.Organization
-	err = postgresConnection.Get(&organizationData, queries.Organization().Select().ByCode(), code)
+	if org.Code() > 0 {
+		err = postgresConnection.Get(&organizationData, queries.Organization().Select().ByCode(), org.Code())
+	} else {
+		err = postgresConnection.Get(&organizationData, queries.Organization().Select().ByNameAndType(), org.Name(), org.Type())
+	}
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Infof("Organização %d não encontrada no banco de dados", code)
+			log.Infof("Organização %S não encontrada no banco de dados", org.Name)
 			return nil, nil
 		}
-		log.Errorf("Erro ao obter os dados da organização %d no banco de dados: %s", code, err.Error())
+		log.Errorf("Erro ao obter os dados da organização %s no banco de dados: %s", org.Name, err.Error())
 		return nil, err
 	}
 
-	organizationDomain, err := organization.NewBuilder().
-		Id(organizationData.Id).
-		Code(organizationData.Code).
+	organizationBuilder := organization.NewBuilder().
+		Id(organizationData.Id)
+
+	if organizationData.Code > 0 {
+		organizationBuilder.Code(organizationData.Code)
+	}
+
+	organizationDomain, err := organizationBuilder.
 		Name(organizationData.Name).
 		Acronym(organizationData.Acronym).
 		Nickname(organizationData.Nickname).

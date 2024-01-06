@@ -54,6 +54,16 @@ func (instance *builder) Acronym(acronym string) *builder {
 	return instance
 }
 
+func (instance *builder) Type(_type string) *builder {
+	_type = strings.TrimSpace(_type)
+	if len(_type) == 0 {
+		instance.invalidFields = append(instance.invalidFields, "O tipo da organização é inválido")
+		return instance
+	}
+	instance.organization._type = _type
+	return instance
+}
+
 func (instance *builder) Active(active bool) *builder {
 	instance.organization.active = active
 	return instance
@@ -81,6 +91,5 @@ func (instance *builder) Build() (*Organization, error) {
 	if len(instance.invalidFields) > 0 {
 		return nil, errors.New(strings.Join(instance.invalidFields, ";"))
 	}
-
 	return instance.organization, nil
 }

@@ -86,6 +86,5 @@ func (instance *builder) Build() (*Party, error) {
 	if len(instance.invalidFields) > 0 {
 		return nil, errors.New(strings.Join(instance.invalidFields, ";"))
 	}
-
 	return instance.party, nil
 }

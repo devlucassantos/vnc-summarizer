@@ -1,9 +1,7 @@
 package services
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
@@ -17,7 +15,7 @@ import (
 	"strings"
 	"time"
 	"vnc-write-api/core/domains/deputy"
-	"vnc-write-api/core/domains/keyword"
+	"vnc-write-api/core/domains/newsletter"
 	"vnc-write-api/core/domains/organization"
 	"vnc-write-api/core/domains/party"
 	"vnc-write-api/core/domains/proposition"
@@ -26,21 +24,21 @@ import (
 
 type BackgroundData struct {
 	deputyRepository       repositories.Deputy
-	keywordRepository      repositories.Keyword
 	organizationRepository repositories.Organization
 	partyRepository        repositories.Party
 	propositionRepository  repositories.Proposition
+	newsletterRepository   repositories.Newsletter
 }
 
-func NewBackgroundDataService(deputyRepository repositories.Deputy, keywordRepository repositories.Keyword,
-	organizationRepository repositories.Organization, partyRepository repositories.Party,
-	propositionRepository repositories.Proposition) *BackgroundData {
+func NewBackgroundDataService(deputyRepository repositories.Deputy, organizationRepository repositories.Organization,
+	partyRepository repositories.Party, propositionRepository repositories.Proposition,
+	newsletterRepository repositories.Newsletter) *BackgroundData {
 	return &BackgroundData{
 		deputyRepository:       deputyRepository,
-		keywordRepository:      keywordRepository,
 		organizationRepository: organizationRepository,
 		partyRepository:        partyRepository,
 		propositionRepository:  propositionRepository,
+		newsletterRepository:   newsletterRepository,
 	}
 }
 
@@ -64,24 +62,24 @@ func (instance BackgroundData) RegisterNewPropositions() {
 	}
 
 	for _, propositionCode := range newPropositionCodes {
-		propositionData, err := getProposition(propositionCode)
+		propositionData, err := instance.getProposition(propositionCode)
 		if err != nil {
 			continue
 		}
 
 		var deputies []deputy.Deputy
 		for _, deputyData := range propositionData.Deputies() {
-			currentParty := deputyData.CurrentParty()
-			registeredParty, err := instance.partyRepository.GetPartyByCode(currentParty.Code())
+			deputyParty := deputyData.Party()
+			registeredParty, err := instance.partyRepository.GetPartyByCode(deputyParty.Code())
 			if err != nil {
 				continue
 			}
 
 			var partyId *uuid.UUID
 			if registeredParty == nil {
-				partyId, err = instance.partyRepository.CreateParty(currentParty)
-			} else if !registeredParty.IsEqual(currentParty) {
-				err = instance.partyRepository.UpdateParty(currentParty)
+				partyId, err = instance.partyRepository.CreateParty(deputyParty)
+			} else if !registeredParty.IsEqual(deputyParty) {
+				err = instance.partyRepository.UpdateParty(deputyParty)
 			}
 			if err != nil {
 				continue
@@ -89,16 +87,16 @@ func (instance BackgroundData) RegisterNewPropositions() {
 
 			var updatedParty *party.Party
 			if partyId == nil {
-				updatedParty, err = currentParty.NewUpdater().Id(registeredParty.Id()).Build()
+				updatedParty, err = deputyParty.NewUpdater().Id(registeredParty.Id()).Build()
 			} else {
-				updatedParty, err = currentParty.NewUpdater().Id(*partyId).Build()
+				updatedParty, err = deputyParty.NewUpdater().Id(*partyId).Build()
 			}
 			if err != nil {
 				log.Errorf("Erro ao atualizar partido %s: %s", partyId, err.Error())
 				continue
 			}
 
-			updatedDeputy, err := deputyData.NewUpdater().CurrentParty(*updatedParty).Build()
+			updatedDeputy, err := deputyData.NewUpdater().Party(*updatedParty).Build()
 			if err != nil {
 				log.Error("Erro ao atualizar partido %s do deputado(a) %d: %s", partyId, deputyData.Code(), err.Error())
 				continue
@@ -111,7 +109,7 @@ func (instance BackgroundData) RegisterNewPropositions() {
 			var deputyId *uuid.UUID
 			if registeredDeputy == nil {
 				deputyId, err = instance.deputyRepository.CreateDeputy(*updatedDeputy)
-			} else if !registeredParty.IsEqual(currentParty) {
+			} else if !registeredParty.IsEqual(deputyParty) {
 				err = instance.deputyRepository.UpdateDeputy(*updatedDeputy)
 			}
 			if err != nil {
@@ -133,7 +131,7 @@ func (instance BackgroundData) RegisterNewPropositions() {
 
 		var organizations []organization.Organization
 		for _, organizationData := range propositionData.Organizations() {
-			registeredOrganization, err := instance.organizationRepository.GetOrganizationByCode(organizationData.Code())
+			registeredOrganization, err := instance.organizationRepository.GetOrganization(organizationData)
 			if err != nil {
 				continue
 			}
@@ -162,40 +160,10 @@ func (instance BackgroundData) RegisterNewPropositions() {
 			organizations = append(organizations, *updatedOrganization)
 		}
 
-		var keywords []keyword.Keyword
-		for _, keywordData := range propositionData.Keywords() {
-			registeredKeyword, err := instance.keywordRepository.GetKeywordByKeyword(keywordData.Keyword())
-			if err != nil {
-				continue
-			}
-
-			var keywordId *uuid.UUID
-			if registeredKeyword == nil {
-				keywordId, err = instance.keywordRepository.CreateKeyword(keywordData)
-			}
-			if err != nil {
-				continue
-			}
-
-			var updatedKeyword *keyword.Keyword
-			if keywordId == nil {
-				updatedKeyword, err = keywordData.NewUpdater().Id(registeredKeyword.Id()).Build()
-			} else {
-				updatedKeyword, err = keywordData.NewUpdater().Id(*keywordId).Build()
-			}
-			if err != nil {
-				log.Errorf("Erro ao atualizar palavra-chave %d: %s", keywordData.Keyword(), err.Error())
-				continue
-			}
-
-			keywords = append(keywords, *updatedKeyword)
-		}
-
 		var updatedProposition *proposition.Proposition
 		updatedProposition, err = propositionData.NewUpdater().
 			Deputies(deputies).
 			Organizations(organizations).
-			Keywords(keywords).
 			Build()
 		if err != nil {
 			log.Errorf("Erro ao atualizar proposição %d: %s", propositionData.Code(), err.Error())
@@ -327,17 +295,16 @@ func findNewPropositionsByCodes(latestPropositionCodesRegistered, latestProposit
 	return newPropositions
 }
 
-func getProposition(propositionCode int) (*proposition.Proposition, error) {
-	log.Info("Iniciando registro da proposição ", propositionCode)
-	propositionData, err := getPropositionDataToRegister(propositionCode)
+func (instance BackgroundData) getProposition(propositionCode int) (*proposition.Proposition, error) {
+	log.Info("Iniciando síntese da proposição ", propositionCode)
+	propositionData, err := instance.getPropositionDataToRegister(propositionCode)
 	if err != nil {
-		waitingTimeInSeconds := 5
 		for attempt := 1; attempt <= 3; attempt++ {
-			waitingTimeInSeconds = int(math.Pow(5, float64(attempt)))
-			log.Warnf("Não foi possível registrar a proposição %d na %d° tentativa, tentando novamente em %d segundos",
+			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
+			log.Warnf("Não foi possível registrar a proposição %d na %dª tentativa, tentando novamente em %d segundos",
 				propositionCode, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
-			propositionData, err = getPropositionDataToRegister(propositionCode)
+			propositionData, err = instance.getPropositionDataToRegister(propositionCode)
 			if err == nil {
 				break
 			}
@@ -345,7 +312,7 @@ func getProposition(propositionCode int) (*proposition.Proposition, error) {
 	}
 
 	if err != nil {
-		log.Error("Erro ao registrar a proposição ", propositionCode)
+		log.Error("Erro ao sintetizar a proposição ", propositionCode)
 		return nil, err
 	}
 
@@ -353,7 +320,7 @@ func getProposition(propositionCode int) (*proposition.Proposition, error) {
 	return propositionData, nil
 }
 
-func getPropositionDataToRegister(propositionCode int) (*proposition.Proposition, error) {
+func (instance BackgroundData) getPropositionDataToRegister(propositionCode int) (*proposition.Proposition, error) {
 	propositionSummaryUrl := fmt.Sprintf("https://dadosabertos.camara.leg.br/api/v2/proposicoes/%d", propositionCode)
 	propositionData, err := getDataFromUrl(propositionSummaryUrl)
 	if err != nil {
@@ -366,7 +333,10 @@ func getPropositionDataToRegister(propositionCode int) (*proposition.Proposition
 		return nil, err
 	}
 
-	propositionContentSummary, err := getPropositionContentSummary(propositionText)
+	chatGptRequestContent := fmt.Sprint("Resuma a seguinte proposição política de forma simples e direta, como se estivesse "+
+		"escrevendo para uma revista. O texto produzido deve conter no máximo três parágrafos: ", propositionText)
+	purpose := fmt.Sprint("Síntese do conteúdo da proposição ", propositionCode)
+	propositionContentSummary, err := requestToChatGpt(chatGptRequestContent, purpose)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +346,10 @@ func getPropositionDataToRegister(propositionCode int) (*proposition.Proposition
 		return nil, err
 	}
 
-	keywords, err := convertKeywordListAsStringToKeywordSlide(fmt.Sprint(propositionData["keywords"]))
+	chatGptRequestContent = fmt.Sprint("Gere um título chamativo para a seguinte matéria de uma revista sobre uma "+
+		"proposição política: ", propositionContentSummary)
+	purpose = fmt.Sprint("Geração do título da proposição ", propositionCode)
+	propositionTitle, err := requestToChatGpt(chatGptRequestContent, purpose)
 	if err != nil {
 		return nil, err
 	}
@@ -390,12 +363,11 @@ func getPropositionDataToRegister(propositionCode int) (*proposition.Proposition
 	propositionDataToRegister, err := proposition.NewBuilder().
 		Code(propositionCode).
 		OriginalTextUrl(originalTextUrl).
-		Title(fmt.Sprint(propositionData["ementa"])).
-		Summary(propositionContentSummary).
+		Title(strings.Trim(propositionTitle, "\"")).
+		Content(propositionContentSummary).
 		SubmittedAt(submittedAt).
 		Deputies(deputies).
 		Organizations(organizations).
-		Keywords(keywords).
 		Build()
 	if err != nil {
 		log.Errorf("Erro construindo a estrutura de dados da proposição %d: %s", propositionCode, err.Error())
@@ -520,78 +492,6 @@ func removeTempFile(file *os.File) {
 	}
 }
 
-func getPropositionContentSummary(propositionText string) (string, error) {
-	log.Info("Iniciando sintetização do conteúdo da proposição")
-
-	type ChatGptMessage struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}
-
-	type ChatGptRequest struct {
-		Model    string           `json:"model"`
-		Messages []ChatGptMessage `json:"messages"`
-	}
-
-	type ChatGptResponse struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-
-	chatGptUrl := "https://api.openai.com/v1/chat/completions"
-
-	message := fmt.Sprint("A seguir tenho um projeto de lei, transcreva ele de maneira que uma pessoa sem uma "+
-		"educação formal completa possa entender e em formato de texto, como se fosse uma matéria de uma revista: ",
-		propositionText)
-	requestBody, err := json.Marshal(ChatGptRequest{
-		Model: "gpt-3.5-turbo",
-		Messages: []ChatGptMessage{
-			{
-				Role:    "user",
-				Content: message,
-			},
-		},
-	})
-	if err != nil {
-		log.Error("Erro ao construir a requisição para comunicação com o ChatGPT: ", err)
-		return "", nil
-	}
-
-	client := &http.Client{}
-	request, err := http.NewRequest("POST", chatGptUrl, bytes.NewBuffer(requestBody))
-	if err != nil {
-		log.Error("Erro ao criar a requisição para o ChatGPT: ", err)
-		return "", nil
-	}
-	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("CHAT_GPT_KEY")))
-	request.Header.Set("Content-Type", "application/json")
-
-	response, err := client.Do(request)
-	if err != nil {
-		log.Error("Erro ao realizar requisição para o ChatGPT: ", err)
-		return "", nil
-	}
-	defer closeResponseBody(response)
-
-	var chatGptResponse ChatGptResponse
-	err = json.NewDecoder(response.Body).Decode(&chatGptResponse)
-	if err != nil {
-		log.Error("Erro ao ler o corpo da resposta retornada pelo ChatGPT: ", err)
-		return "", err
-	}
-
-	if len(chatGptResponse.Choices) < 1 {
-		log.Error("Não foi possível obter o resultado da solicitação ao ChatGPT")
-		return "", errors.New("não foi possível obter o resultado da solicitação ao ChatGPT")
-	}
-
-	log.Info("Sintetização do conteúdo da proposição finalizada com sucesso")
-	return chatGptResponse.Choices[0].Message.Content, nil
-}
-
 func closeResponseBody(response *http.Response) {
 	err := response.Body.Close()
 	if err != nil {
@@ -674,7 +574,7 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 				Name(fmt.Sprint(authorData["nomeCivil"])).
 				ElectoralName(fmt.Sprint(authorLastStatus["nomeEleitoral"])).
 				ImageUrl(fmt.Sprint(authorLastStatus["urlFoto"])).
-				CurrentParty(*partyData).
+				Party(*partyData).
 				Build()
 			if err != nil {
 				log.Errorf("Erro construindo a estrutura de dados do(a) deputado(a) %d: %s", deputyCode, err.Error())
@@ -683,19 +583,28 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 
 			deputies = append(deputies, *deputyData)
 		} else {
-			code, err := convertInterfaceToInt(authorData["id"])
-			if err != nil {
-				return nil, nil, err
-			}
+			var organizationData *organization.Organization
+			if authorData != nil {
+				code, err := convertInterfaceToInt(authorData["id"])
+				if err != nil {
+					return nil, nil, err
+				}
 
-			organizationData, err := organization.NewBuilder().
-				Code(code).
-				Name(fmt.Sprint(authorData["nome"])).
-				Acronym(fmt.Sprint(authorData["sigla"])).
-				Nickname(fmt.Sprint(authorData["apelido"])).
-				Build()
+				organizationData, err = organization.NewBuilder().
+					Code(code).
+					Name(fmt.Sprint(authorData["nome"])).
+					Acronym(fmt.Sprint(authorData["sigla"])).
+					Nickname(fmt.Sprint(authorData["apelido"])).
+					Type(fmt.Sprint(author["tipo"])).
+					Build()
+			} else {
+				organizationData, err = organization.NewBuilder().
+					Name(fmt.Sprint(author["nome"])).
+					Type(fmt.Sprint(author["tipo"])).
+					Build()
+			}
 			if err != nil {
-				log.Errorf("Erro construindo a estrutura de dados da organização %d: %s", code, err.Error())
+				log.Errorf("Erro construindo a estrutura de dados da organização %s: %s", fmt.Sprint(authorData["nome"]), err.Error())
 				return nil, nil, err
 			}
 
@@ -707,25 +616,84 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 	return deputies, organizations, nil
 }
 
-func convertKeywordListAsStringToKeywordSlide(keywordList string) ([]keyword.Keyword, error) {
-	if keywordList == "<nil>" {
-		return nil, nil
+func (instance BackgroundData) RegisterNewNewsletter() {
+	referenceDate := time.Now().AddDate(0, 0, -1)
+	formattedReferenceDate := referenceDate.Format("02/01/2006")
+
+	log.Info("Iniciando geração do boletim do dia ", formattedReferenceDate)
+
+	propositions, err := instance.propositionRepository.GetPropositionsByDate(referenceDate)
+	if err != nil {
+		return
+	} else if propositions == nil {
+		log.Infof("Não foram encontradas proposições no dia %s para gerar um novo boletim", formattedReferenceDate)
+		return
 	}
 
-	keywordList, _, _ = strings.Cut(keywordList, ".")
-	keywordList = strings.ToUpper(keywordList)
-	keywordSlice := strings.Split(keywordList, ", ")
-
-	var keywordsOfTheProposition []keyword.Keyword
-	for _, keywordAsString := range keywordSlice {
-		keywordData, err := keyword.NewBuilder().Keyword(keywordAsString).Build()
-		if err != nil {
-			log.Errorf("Erro construindo a estrutura de dados da palavra-chave %s: %s", keywordAsString, err.Error())
-			return nil, err
+	newsletterData, err := generateNewsletter(propositions, referenceDate)
+	if err != nil {
+		for attempt := 1; attempt <= 3; attempt++ {
+			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
+			log.Warnf("Não foi possível criar o boletim do dia %s na %dª tentativa, tentando novamente em %d segundos",
+				formattedReferenceDate, attempt, waitingTimeInSeconds)
+			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
+			newsletterData, err = generateNewsletter(propositions, referenceDate)
+			if err == nil {
+				break
+			}
 		}
-
-		keywordsOfTheProposition = append(keywordsOfTheProposition, *keywordData)
 	}
 
-	return keywordsOfTheProposition, nil
+	if err != nil {
+		log.Error("Erro ao gerar o do boletim do dia ", formattedReferenceDate)
+		return
+	}
+
+	log.Infof("Boletim do dia %s gerado com sucesso", formattedReferenceDate)
+
+	_, err = instance.newsletterRepository.CreateNewsletter(*newsletterData)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func generateNewsletter(propositions []proposition.Proposition, referenceDate time.Time) (*newsletter.Newsletter, error) {
+	formattedReferenceDate := referenceDate.Format("02/01/2006")
+
+	var contentOfPropositions string
+	for count, propositionData := range propositions {
+		contentOfPropositions += fmt.Sprintf("Título da %dª matéria: %s\nConteúdo: %s\n\n", count+1, propositionData.Title(),
+			propositionData.Content())
+	}
+
+	chatGptRequestContent := fmt.Sprint("Crie um boletim de notícias em formato de texto corrido a partir das "+
+		"seguintes matérias sobre algumas proposições políticas:\n\n", contentOfPropositions)
+	purpose := fmt.Sprint("Geração do boletim do dia ", formattedReferenceDate)
+	newsletterContent, err := requestToChatGpt(chatGptRequestContent, purpose)
+	if err != nil {
+		return nil, err
+	}
+
+	chatGptRequestContent = fmt.Sprint("Gere um título chamativo para a seguinte matéria de uma revista sobre um "+
+		"conjunto de proposições políticas, retorne apenas o título: ", contentOfPropositions)
+	purpose = fmt.Sprint("Geração do título do boletim do dia ", formattedReferenceDate)
+	newsletterTitle, err := requestToChatGpt(chatGptRequestContent, purpose)
+	if err != nil {
+		return nil, err
+	}
+
+	newsletterData, err := newsletter.NewBuilder().
+		Title(strings.TrimPrefix(newsletterTitle, "Título: ")).
+		Content(newsletterContent).
+		ReferenceDate(referenceDate).
+		Propositions(propositions).
+		Build()
+	if err != nil {
+		log.Errorf("Erro construindo a estrutura de dados do boletim do dia %s: %s", formattedReferenceDate, err.Error())
+		return nil, err
+	}
+
+	return newsletterData, nil
 }
