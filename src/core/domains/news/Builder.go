@@ -18,7 +18,7 @@ func NewBuilder() *builder {
 
 func (instance *builder) Id(id uuid.UUID) *builder {
 	if id.ID() == 0 {
-		instance.invalidFields = append(instance.invalidFields, "O ID do boletim é inválido")
+		instance.invalidFields = append(instance.invalidFields, "O ID da matéria é inválido")
 		return instance
 	}
 	instance.news.id = id
@@ -70,7 +70,7 @@ func (instance *builder) Active(active bool) *builder {
 
 func (instance *builder) CreatedAt(createdAt time.Time) *builder {
 	if createdAt.IsZero() {
-		instance.invalidFields = append(instance.invalidFields, "A data de criação do registro do boletim é inválida")
+		instance.invalidFields = append(instance.invalidFields, "A data de criação do registro da matéria é inválida")
 		return instance
 	}
 	instance.news.createdAt = createdAt
@@ -79,7 +79,7 @@ func (instance *builder) CreatedAt(createdAt time.Time) *builder {
 
 func (instance *builder) UpdatedAt(updatedAt time.Time) *builder {
 	if updatedAt.IsZero() {
-		instance.invalidFields = append(instance.invalidFields, "A data de atualização do registro do boletim é inválida")
+		instance.invalidFields = append(instance.invalidFields, "A data de atualização do registro da matéria é inválida")
 		return instance
 	}
 	instance.news.updatedAt = updatedAt
