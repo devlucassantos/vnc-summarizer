@@ -1,8 +1,8 @@
 package repositories
 
 import (
+	"github.com/devlucassantos/vnc-domains/src/domains/organization"
 	"github.com/google/uuid"
-	"vnc-write-api/core/domains/organization"
 )
 
 type Organization interface {

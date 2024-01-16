@@ -1,9 +1,9 @@
 package postgres
 
 import (
+	"github.com/devlucassantos/vnc-domains/src/domains/newsletter"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
-	"vnc-write-api/core/domains/newsletter"
 	"vnc-write-api/infra/postgres/queries"
 )
 

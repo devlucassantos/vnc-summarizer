@@ -1,8 +1,8 @@
 package repositories
 
 import (
+	"github.com/devlucassantos/vnc-domains/src/domains/party"
 	"github.com/google/uuid"
-	"vnc-write-api/core/domains/party"
 )
 
 type Party interface {
