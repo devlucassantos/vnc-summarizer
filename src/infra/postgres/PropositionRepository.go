@@ -1,10 +1,10 @@
 package postgres
 
 import (
+	"github.com/devlucassantos/vnc-domains/src/domains/proposition"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
 	"time"
-	"vnc-write-api/core/domains/proposition"
 	"vnc-write-api/infra/dto"
 	"vnc-write-api/infra/postgres/queries"
 )

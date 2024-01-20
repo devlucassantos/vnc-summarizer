@@ -3,6 +3,11 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/devlucassantos/vnc-domains/src/domains/deputy"
+	"github.com/devlucassantos/vnc-domains/src/domains/newsletter"
+	"github.com/devlucassantos/vnc-domains/src/domains/organization"
+	"github.com/devlucassantos/vnc-domains/src/domains/party"
+	"github.com/devlucassantos/vnc-domains/src/domains/proposition"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
 	"github.com/unidoc/unipdf/v3/extractor"
@@ -14,11 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"vnc-write-api/core/domains/deputy"
-	"vnc-write-api/core/domains/newsletter"
-	"vnc-write-api/core/domains/organization"
-	"vnc-write-api/core/domains/party"
-	"vnc-write-api/core/domains/proposition"
 	"vnc-write-api/core/interfaces/repositories"
 )
 
@@ -333,10 +333,10 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
-	chatGptRequestContent := fmt.Sprint("Resuma a seguinte proposição política de forma simples e direta, como se estivesse "+
-		"escrevendo para uma revista. O texto produzido deve conter no máximo três parágrafos: ", propositionText)
+	chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo para uma " +
+		"revista. O texto produzido deve conter no máximo três parágrafos:"
 	purpose := fmt.Sprint("Síntese do conteúdo da proposição ", propositionCode)
-	propositionContentSummary, err := requestToChatGpt(chatGptRequestContent, purpose)
+	propositionContentSummary, err := requestToChatGpt(chatGptCommand, propositionText, purpose)
 	if err != nil {
 		return nil, err
 	}
@@ -346,10 +346,9 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
-	chatGptRequestContent = fmt.Sprint("Gere um título chamativo para a seguinte matéria de uma revista sobre uma "+
-		"proposição política: ", propositionContentSummary)
+	chatGptCommand = "Gere um título chamativo para a seguinte matéria para uma revista sobre uma proposição política:"
 	purpose = fmt.Sprint("Geração do título da proposição ", propositionCode)
-	propositionTitle, err := requestToChatGpt(chatGptRequestContent, purpose)
+	propositionTitle, err := requestToChatGpt(chatGptCommand, propositionContentSummary, purpose)
 	if err != nil {
 		return nil, err
 	}
@@ -668,24 +667,24 @@ func generateNewsletter(propositions []proposition.Proposition, referenceDate ti
 			propositionData.Content())
 	}
 
-	chatGptRequestContent := fmt.Sprint("Crie um boletim de notícias em formato de texto corrido a partir das "+
-		"seguintes matérias sobre algumas proposições políticas:\n\n", contentOfPropositions)
+	chatGptCommand := "Crie um boletim de notícias em formato de texto corrido a partir das seguintes matérias sobre " +
+		"algumas proposições políticas:"
 	purpose := fmt.Sprint("Geração do boletim do dia ", formattedReferenceDate)
-	newsletterContent, err := requestToChatGpt(chatGptRequestContent, purpose)
+	newsletterContent, err := requestToChatGpt(chatGptCommand, contentOfPropositions, purpose)
 	if err != nil {
 		return nil, err
 	}
 
-	chatGptRequestContent = fmt.Sprint("Gere um título chamativo para a seguinte matéria de uma revista sobre um "+
-		"conjunto de proposições políticas, retorne apenas o título: ", contentOfPropositions)
+	chatGptCommand = "Gere um único título chamativo para a seguinte matéria para uma revista sobre um conjunto de " +
+		"proposições políticas:"
 	purpose = fmt.Sprint("Geração do título do boletim do dia ", formattedReferenceDate)
-	newsletterTitle, err := requestToChatGpt(chatGptRequestContent, purpose)
+	newsletterTitle, err := requestToChatGpt(chatGptCommand, newsletterContent, purpose)
 	if err != nil {
 		return nil, err
 	}
 
 	newsletterData, err := newsletter.NewBuilder().
-		Title(strings.TrimPrefix(newsletterTitle, "Título: ")).
+		Title(strings.Trim(newsletterTitle, "\"")).
 		Content(newsletterContent).
 		ReferenceDate(referenceDate).
 		Propositions(propositions).

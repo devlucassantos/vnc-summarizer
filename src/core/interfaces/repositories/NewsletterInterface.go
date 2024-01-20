@@ -1,8 +1,8 @@
 package repositories
 
 import (
+	"github.com/devlucassantos/vnc-domains/src/domains/newsletter"
 	"github.com/google/uuid"
-	"vnc-write-api/core/domains/newsletter"
 )
 
 type Newsletter interface {

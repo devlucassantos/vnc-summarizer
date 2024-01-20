@@ -22,17 +22,23 @@ the AI service currently used by VNC.
 * `UNI_CLOUD_KEY` → To fill in this variable an [API key must be created in UniCLOUD](https://cloud.unidoc.io/#/api-keys),
 the PDF manipulation service currently used by VNC.
 
-### Running via Docker
-
-> Note that to properly run `vnc-write-api` you will need to have the [`vnc-database` containers](https://github.com/devlucassantos/vnc-database)
+> Note that to properly run `vnc-write-api` you will need to have the [`vnc-databases` containers](https://github.com/devlucassantos/vnc-databases)
 running so that this application's container has access to the databases necessary to query and modify the data.
 
-To build the databases you will need to have [Docker](https://www.docker.com) installed on your machine and run the
-following commands in the root directory of this project:
+### Running via Docker
+
+To run the API you will need to have [Docker](https://www.docker.com) installed on your machine and run the following
+commands in the root directory of this project:
 
 ````shell
 docker compose up
 ````
+
+### Documentation
+
+After running the project, all the available routes for accessing the API can be found via the link:
+
+> [http://localhost:8083/api/v1/documentation/index.html](http://localhost:8083/api/v1/documentation/index.html)
 
 ## Você Na Câmara (VNC)
 

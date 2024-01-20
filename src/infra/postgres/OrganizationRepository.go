@@ -2,9 +2,9 @@ package postgres
 
 import (
 	"database/sql"
+	"github.com/devlucassantos/vnc-domains/src/domains/organization"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
-	"vnc-write-api/core/domains/organization"
 	"vnc-write-api/infra/dto"
 	"vnc-write-api/infra/postgres/queries"
 )
@@ -82,7 +82,7 @@ func (instance Organization) GetOrganization(org organization.Organization) (*or
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Infof("Organização %S não encontrada no banco de dados", org.Name)
+			log.Infof("Organização %s não encontrada no banco de dados", org.Name)
 			return nil, nil
 		}
 		log.Errorf("Erro ao obter os dados da organização %s no banco de dados: %s", org.Name, err.Error())

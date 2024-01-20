@@ -2,10 +2,10 @@ package postgres
 
 import (
 	"database/sql"
+	"github.com/devlucassantos/vnc-domains/src/domains/deputy"
+	"github.com/devlucassantos/vnc-domains/src/domains/party"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
-	"vnc-write-api/core/domains/deputy"
-	"vnc-write-api/core/domains/party"
 	"vnc-write-api/infra/dto"
 	"vnc-write-api/infra/postgres/queries"
 )
