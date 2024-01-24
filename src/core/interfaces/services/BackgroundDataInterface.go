@@ -1,6 +1,8 @@
 package services
 
+import "time"
+
 type BackgroundData interface {
-	RegisterNewNewsletter()
+	RegisterNewNewsletter(referenceDate time.Time)
 	RegisterNewPropositions()
 }

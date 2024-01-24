@@ -85,7 +85,7 @@ func (instance Party) GetPartyByCode(code int) (*party.Party, error) {
 		UpdatedAt(partyData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro construindo a estrutura de dados do partido %s: %s", partyData.Id, err.Error())
+		log.Errorf("Erro durante a construção da estrutura de dados do partido %s: %s", partyData.Id, err.Error())
 		return nil, err
 	}
 

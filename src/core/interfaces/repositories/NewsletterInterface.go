@@ -2,9 +2,12 @@ package repositories
 
 import (
 	"github.com/devlucassantos/vnc-domains/src/domains/newsletter"
-	"github.com/google/uuid"
+	"github.com/devlucassantos/vnc-domains/src/domains/proposition"
+	"time"
 )
 
 type Newsletter interface {
-	CreateNewsletter(newsletter newsletter.Newsletter) (*uuid.UUID, error)
+	CreateNewsletter(newsletter newsletter.Newsletter) error
+	UpdateNewsletter(newsletter newsletter.Newsletter, newPropositions []proposition.Proposition) error
+	GetNewsletterByReferenceDate(referenceDate time.Time) (*newsletter.Newsletter, error)
 }

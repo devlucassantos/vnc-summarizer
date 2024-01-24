@@ -98,7 +98,8 @@ func (instance BackgroundData) RegisterNewPropositions() {
 
 			updatedDeputy, err := deputyData.NewUpdater().Party(*updatedParty).Build()
 			if err != nil {
-				log.Error("Erro ao atualizar partido %s do deputado(a) %d: %s", partyId, deputyData.Code(), err.Error())
+				log.Error("Erro ao atualizar partido %s do deputado(a) %d: %s", partyId, deputyData.Code(),
+					err.Error())
 				continue
 			}
 			registeredDeputy, err := instance.deputyRepository.GetDeputyByCode(updatedDeputy.Code())
@@ -170,7 +171,7 @@ func (instance BackgroundData) RegisterNewPropositions() {
 			continue
 		}
 
-		_, err = instance.propositionRepository.CreateProposition(*updatedProposition)
+		err = instance.propositionRepository.CreateProposition(*updatedProposition)
 		if err != nil {
 			continue
 		}
@@ -301,8 +302,8 @@ func (instance BackgroundData) getProposition(propositionCode int) (*proposition
 	if err != nil {
 		for attempt := 1; attempt <= 3; attempt++ {
 			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
-			log.Warnf("Não foi possível registrar a proposição %d na %dª tentativa, tentando novamente em %d segundos",
-				propositionCode, attempt, waitingTimeInSeconds)
+			log.Warnf("Não foi possível registrar a proposição %d na %dª tentativa, tentando novamente em %d "+
+				"segundos", propositionCode, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
 			propositionData, err = instance.getPropositionDataToRegister(propositionCode)
 			if err == nil {
@@ -333,8 +334,8 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
-	chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo para uma " +
-		"revista. O texto produzido deve conter no máximo três parágrafos:"
+	chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo" +
+		"para uma revista. O texto produzido deve conter no máximo três parágrafos:"
 	purpose := fmt.Sprint("Síntese do conteúdo da proposição ", propositionCode)
 	propositionContentSummary, err := requestToChatGpt(chatGptCommand, propositionText, purpose)
 	if err != nil {
@@ -369,7 +370,8 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		Organizations(organizations).
 		Build()
 	if err != nil {
-		log.Errorf("Erro construindo a estrutura de dados da proposição %d: %s", propositionCode, err.Error())
+		log.Errorf("Erro durante a construção da estrutura de dados da proposição %d: %s", propositionCode,
+			err.Error())
 		return nil, err
 	}
 
@@ -462,13 +464,15 @@ func getPropositionContent(url string) (string, error) {
 
 		contentExtractor, err := extractor.New(page)
 		if err != nil {
-			log.Errorf("Erro ao criar o extrator de conteúdo da página %d do arquivo temporário: %s", pageNumber, err.Error())
+			log.Errorf("Erro ao criar o extrator de conteúdo da página %d do arquivo temporário: %s", pageNumber,
+				err.Error())
 			return "", err
 		}
 
 		text, err := contentExtractor.ExtractText()
 		if err != nil {
-			log.Errorf("Erro ao extrair o conteúdo da página %d do arquivo temporário: %s", pageNumber, err.Error())
+			log.Errorf("Erro ao extrair o conteúdo da página %d do arquivo temporário: %s", pageNumber,
+				err.Error())
 			return "", err
 		}
 
@@ -562,7 +566,7 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 				ImageUrl(fmt.Sprint(partyMap["urlLogo"])).
 				Build()
 			if err != nil {
-				log.Errorf("Erro construindo a estrutura de dados do partido %d do(a) deputado(a) %d: %s",
+				log.Errorf("Erro durante a construção da estrutura de dados do partido %d do(a) deputado(a) %d: %s",
 					partyCode, deputyCode, err.Error())
 				return nil, nil, err
 			}
@@ -576,7 +580,8 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 				Party(*partyData).
 				Build()
 			if err != nil {
-				log.Errorf("Erro construindo a estrutura de dados do(a) deputado(a) %d: %s", deputyCode, err.Error())
+				log.Errorf("Erro durante a construção da estrutura de dados do(a) deputado(a) %d: %s", deputyCode,
+					err.Error())
 				return nil, nil, err
 			}
 
@@ -603,7 +608,8 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 					Build()
 			}
 			if err != nil {
-				log.Errorf("Erro construindo a estrutura de dados da organização %s: %s", fmt.Sprint(authorData["nome"]), err.Error())
+				log.Errorf("Erro durante a construção da estrutura de dados da organização %s: %s",
+					fmt.Sprint(authorData["nome"]), err.Error())
 				return nil, nil, err
 			}
 
@@ -615,26 +621,59 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 	return deputies, organizations, nil
 }
 
-func (instance BackgroundData) RegisterNewNewsletter() {
-	referenceDate := time.Now().AddDate(0, 0, -1)
+func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 	formattedReferenceDate := referenceDate.Format("02/01/2006")
-
-	log.Info("Iniciando geração do boletim do dia ", formattedReferenceDate)
 
 	propositions, err := instance.propositionRepository.GetPropositionsByDate(referenceDate)
 	if err != nil {
 		return
 	} else if propositions == nil {
-		log.Infof("Não foram encontradas proposições no dia %s para gerar um novo boletim", formattedReferenceDate)
+		log.Infof("Não foram encontradas proposições no dia %s para gerar um novo boletim",
+			formattedReferenceDate)
 		return
+	}
+
+	var propositionOutsideTheNewsletter []proposition.Proposition
+	registeredNewsletter, err := instance.newsletterRepository.GetNewsletterByReferenceDate(referenceDate)
+	if err != nil {
+		return
+	} else if registeredNewsletter != nil {
+		for _, propositionData := range propositions {
+			var isInTheNewsletter bool
+			for _, newsletterPropositionData := range registeredNewsletter.Propositions() {
+				if newsletterPropositionData.Id() == propositionData.Id() {
+					isInTheNewsletter = true
+					break
+				}
+			}
+
+			if !isInTheNewsletter {
+				propositionOutsideTheNewsletter = append(propositionOutsideTheNewsletter, propositionData)
+			}
+		}
+	} else {
+		propositionOutsideTheNewsletter = propositions
+	}
+
+	if propositionOutsideTheNewsletter == nil {
+		log.Infof("Não foram encontradas novas proposições no dia %s para atualizar o boletim %s",
+			formattedReferenceDate, registeredNewsletter.Id())
+		return
+	}
+
+	if registeredNewsletter == nil {
+		log.Info("Iniciando geração do boletim do dia ", formattedReferenceDate)
+	} else {
+		log.Infof("Iniciando atualização do boletim %s do dia %s", registeredNewsletter.Id(),
+			formattedReferenceDate)
 	}
 
 	newsletterData, err := generateNewsletter(propositions, referenceDate)
 	if err != nil {
 		for attempt := 1; attempt <= 3; attempt++ {
 			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
-			log.Warnf("Não foi possível criar o boletim do dia %s na %dª tentativa, tentando novamente em %d segundos",
-				formattedReferenceDate, attempt, waitingTimeInSeconds)
+			log.Warnf("Não foi possível criar o boletim do dia %s na %dª tentativa, tentando novamente em %d "+
+				"segundos", formattedReferenceDate, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
 			newsletterData, err = generateNewsletter(propositions, referenceDate)
 			if err == nil {
@@ -650,9 +689,25 @@ func (instance BackgroundData) RegisterNewNewsletter() {
 
 	log.Infof("Boletim do dia %s gerado com sucesso", formattedReferenceDate)
 
-	_, err = instance.newsletterRepository.CreateNewsletter(*newsletterData)
-	if err != nil {
-		return
+	if registeredNewsletter != nil {
+		newsletterData, err = newsletterData.NewUpdater().Id(registeredNewsletter.Id()).Build()
+		if err != nil {
+			log.Errorf("Erro durante a atualização da estrutura de dados do boletim do dia %s: %s",
+				formattedReferenceDate, err.Error())
+			return
+		}
+	}
+
+	if registeredNewsletter == nil {
+		err = instance.newsletterRepository.CreateNewsletter(*newsletterData)
+		if err != nil {
+			log.Error("Erro ao registrar o boletim do dia ", formattedReferenceDate)
+		}
+	} else {
+		err = instance.newsletterRepository.UpdateNewsletter(*newsletterData, propositionOutsideTheNewsletter)
+		if err != nil {
+			log.Error("Erro ao atualizar o boletim do dia ", formattedReferenceDate)
+		}
 	}
 
 	return
@@ -663,8 +718,8 @@ func generateNewsletter(propositions []proposition.Proposition, referenceDate ti
 
 	var contentOfPropositions string
 	for count, propositionData := range propositions {
-		contentOfPropositions += fmt.Sprintf("Título da %dª matéria: %s\nConteúdo: %s\n\n", count+1, propositionData.Title(),
-			propositionData.Content())
+		contentOfPropositions += fmt.Sprintf("Título da %dª matéria: %s\nConteúdo: %s\n\n", count+1,
+			propositionData.Title(), propositionData.Content())
 	}
 
 	chatGptCommand := "Crie um boletim de notícias em formato de texto corrido a partir das seguintes matérias sobre " +
@@ -690,7 +745,8 @@ func generateNewsletter(propositions []proposition.Proposition, referenceDate ti
 		Propositions(propositions).
 		Build()
 	if err != nil {
-		log.Errorf("Erro construindo a estrutura de dados do boletim do dia %s: %s", formattedReferenceDate, err.Error())
+		log.Errorf("Erro durante a construção da estrutura de dados do boletim do dia %s: %s",
+			formattedReferenceDate, err.Error())
 		return nil, err
 	}
 

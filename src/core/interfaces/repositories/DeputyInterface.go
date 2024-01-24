@@ -6,7 +6,7 @@ import (
 )
 
 type Deputy interface {
-	CreateDeputy(deputy.Deputy) (*uuid.UUID, error)
+	CreateDeputy(deputy deputy.Deputy) (*uuid.UUID, error)
 	UpdateDeputy(deputy deputy.Deputy) error
 	GetDeputyByCode(code int) (*deputy.Deputy, error)
 }

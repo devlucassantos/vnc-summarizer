@@ -33,7 +33,8 @@ type ChatGptResponse struct {
 func requestToChatGpt(command, content, purpose string) (string, error) {
 	characterLimitPerRequest, err := strconv.Atoi(os.Getenv("CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST"))
 	if err != nil {
-		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST para inteiro: ", err))
+		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST "+
+			"para inteiro: ", err))
 		log.Error(err.Error())
 		return "", err
 	}
@@ -59,7 +60,8 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 
 	requestLimitPerMinute, err := strconv.Atoi(os.Getenv("CHAT_GPT_REQUEST_LIMIT_PER_MINUTE"))
 	if err != nil {
-		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente CHAT_GPT_REQUEST_LIMIT_PER_MINUTE para inteiro: ", err))
+		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente CHAT_GPT_REQUEST_LIMIT_PER_MINUTE para "+
+			"inteiro: ", err))
 		log.Error(err.Error())
 		return "", err
 	}
@@ -113,14 +115,17 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 
 		if len(chatGptResponse.Choices) < 1 {
 			if response.StatusCode == 400 {
-				log.Warnf("Erro ao realizar a requisição para o ChatGPT (%s), dividindo o conteúdo em partes menores", purpose)
+				log.Warnf("Erro ao realizar a requisição para o ChatGPT (%s), dividindo o conteúdo em partes "+
+					"menores", purpose)
 
 				characterLimit, err := strconv.Atoi(os.Getenv("CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST"))
 				if err != nil {
-					log.Error("Erro ao converter variável de ambiente CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST para inteiro: ", err)
+					log.Error("Erro ao converter variável de ambiente CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST para "+
+						"inteiro: ", err)
 				} else if characterLimitPerRequest == characterLimit {
 					time.Sleep(time.Minute) // To avoid excessive requests to ChatGPT
-					return requestToChatGptWithCharacterLimitPerRequest(command, originalContent, purpose, characterLimitPerRequest/3)
+					return requestToChatGptWithCharacterLimitPerRequest(command, originalContent, purpose,
+						characterLimitPerRequest/3)
 				}
 			}
 

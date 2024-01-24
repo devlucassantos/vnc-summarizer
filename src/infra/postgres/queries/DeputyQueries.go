@@ -14,7 +14,7 @@ func (deputySqlManager) Insert() string {
 func (deputySqlManager) Update() string {
 	return `UPDATE deputy SET name = COALESCE($1, name), electoral_name = COALESCE($2, electoral_name),
                   image_url = COALESCE($3, image_url), party_id = COALESCE($4, party_id),
-                  updated_at = NOW()
+                  updated_at = TIMEZONE('America/Sao_Paulo'::TEXT, NOW())
             WHERE active = true AND code = $5`
 }
 

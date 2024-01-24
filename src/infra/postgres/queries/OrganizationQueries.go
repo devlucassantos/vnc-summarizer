@@ -12,12 +12,14 @@ func (organizationSqlManager) Insert() string {
 
 func (organizationSqlManager) UpdateByCode() string {
 	return `UPDATE organization SET name = COALESCE($1, name), acronym = COALESCE($2, acronym),
-            	nickname = COALESCE($3, nickname), type = COALESCE($4, type), updated_at = NOW()
+            	nickname = COALESCE($3, nickname), type = COALESCE($4, type),
+				updated_at = TIMEZONE('America/Sao_Paulo'::TEXT, NOW())
             WHERE active = true AND code = $4`
 }
 
 func (organizationSqlManager) UpdateByNameAndType() string {
-	return `UPDATE organization SET acronym = COALESCE($1, acronym), nickname = COALESCE($2, nickname), updated_at = NOW()
+	return `UPDATE organization SET acronym = COALESCE($1, acronym), nickname = COALESCE($2, nickname),
+				updated_at = TIMEZONE('America/Sao_Paulo'::TEXT, NOW())
             WHERE active = true AND name = $3 AND type = $4`
 }
 
