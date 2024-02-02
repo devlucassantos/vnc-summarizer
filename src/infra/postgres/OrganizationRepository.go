@@ -52,8 +52,8 @@ func (instance Organization) UpdateOrganization(organization organization.Organi
 	defer instance.connectionManager.endConnection(postgresConnection)
 
 	if organization.Code() > 0 {
-		_, err = postgresConnection.Exec(queries.Organization().UpdateByCode(), organization.Name(), organization.Acronym(),
-			organization.Nickname(), organization.Type(), organization.Code())
+		_, err = postgresConnection.Exec(queries.Organization().UpdateByCode(), organization.Name(),
+			organization.Acronym(), organization.Nickname(), organization.Type(), organization.Code())
 	} else {
 		_, err = postgresConnection.Exec(queries.Organization().UpdateByNameAndType(), organization.Acronym(),
 			organization.Nickname(), organization.Name(), organization.Type())
@@ -78,7 +78,8 @@ func (instance Organization) GetOrganization(org organization.Organization) (*or
 	if org.Code() > 0 {
 		err = postgresConnection.Get(&organizationData, queries.Organization().Select().ByCode(), org.Code())
 	} else {
-		err = postgresConnection.Get(&organizationData, queries.Organization().Select().ByNameAndType(), org.Name(), org.Type())
+		err = postgresConnection.Get(&organizationData, queries.Organization().Select().ByNameAndType(), org.Name(),
+			org.Type())
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -105,7 +106,8 @@ func (instance Organization) GetOrganization(org organization.Organization) (*or
 		UpdatedAt(organizationData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro construindo a estrutura de dados da organização %s: %s", organizationData.Id, err.Error())
+		log.Errorf("Erro durante a construção da estrutura de dados da organização %s: %s", organizationData.Id,
+			err.Error())
 		return nil, err
 	}
 

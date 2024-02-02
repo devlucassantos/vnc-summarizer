@@ -12,7 +12,7 @@ func (partySqlManager) Insert() string {
 
 func (partySqlManager) Update() string {
 	return `UPDATE party SET name = COALESCE($1, name), acronym = COALESCE($2, acronym),
-                 image_url = COALESCE($3, image_url), updated_at = NOW()
+                 image_url = COALESCE($3, image_url), updated_at = TIMEZONE('America/Sao_Paulo'::TEXT, NOW())
             WHERE active = true AND code = $4`
 }
 

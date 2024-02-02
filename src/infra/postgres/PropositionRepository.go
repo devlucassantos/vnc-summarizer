@@ -19,17 +19,18 @@ func NewPropositionRepository(connectionManager ConnectionManagerInterface) *Pro
 	}
 }
 
-func (instance Proposition) CreateProposition(proposition proposition.Proposition) (*uuid.UUID, error) {
+func (instance Proposition) CreateProposition(proposition proposition.Proposition) error {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer instance.connectionManager.endConnection(postgresConnection)
 
 	transaction, err := postgresConnection.Beginx()
 	if err != nil {
-		log.Errorf("Erro ao iniciar transação para o cadastro da proposição %d: %s", proposition.Code(), err.Error())
-		return nil, err
+		log.Errorf("Erro ao iniciar transação para o cadastro da proposição %d: %s", proposition.Code(),
+			err.Error())
+		return err
 	}
 	defer instance.connectionManager.rollbackTransaction(transaction)
 
@@ -38,7 +39,7 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 		proposition.Title(), proposition.Content(), proposition.SubmittedAt()).Scan(&propositionId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar a proposição %d: %s", proposition.Code(), err.Error())
-		return nil, err
+		return err
 	}
 
 	for _, deputyData := range proposition.Deputies() {
@@ -58,8 +59,8 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 
 	for _, organizationData := range proposition.Organizations() {
 		var propositionAuthorId uuid.UUID
-		err = transaction.QueryRow(queries.PropositionAuthor().InsertOrganization(), propositionId, organizationData.Id()).
-			Scan(&propositionAuthorId)
+		err = transaction.QueryRow(queries.PropositionAuthor().InsertOrganization(), propositionId,
+			organizationData.Id()).Scan(&propositionAuthorId)
 		if err != nil {
 			log.Errorf("Erro ao cadastrar organização %s como autora da proposição %d: %s", organizationData.Id(),
 				proposition.Code(), err.Error())
@@ -74,18 +75,19 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 	err = transaction.QueryRow(queries.News().InsertProposition(), propositionId).Scan(&newsId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar a proposição %d como matéria: %s", proposition.Code(), err.Error())
-		return nil, err
+		return err
 	}
 
 	err = transaction.Commit()
 	if err != nil {
-		log.Error("Erro ao confirmar transação para o cadastro da proposição %d: %s", proposition.Code(), err.Error())
-		return nil, err
+		log.Error("Erro ao confirmar transação para o cadastro da proposição %d: %s", proposition.Code(),
+			err.Error())
+		return err
 	}
 
 	log.Infof("Proposição %d registrada com sucesso com o ID %s (ID da Matéria: %s)",
 		proposition.Code(), propositionId, newsId)
-	return &propositionId, nil
+	return nil
 }
 
 func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition.Proposition, error) {
@@ -116,7 +118,8 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 			UpdatedAt(propositionDetails.UpdatedAt).
 			Build()
 		if err != nil {
-			log.Errorf("Erro construindo a estrutura de dados da proposição %s: %s", propositionDetails, err.Error())
+			log.Errorf("Erro durante a construção da estrutura de dados da proposição %s: %s", propositionDetails,
+				err.Error())
 			return nil, err
 		}
 

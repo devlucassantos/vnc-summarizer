@@ -88,7 +88,7 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		UpdatedAt(deputyData.Party.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro construindo a estrutura de dados do partido %s do(a) deputado(a) %s: %s",
+		log.Errorf("Erro durante a construção da estrutura de dados do partido %s do(a) deputado(a) %s: %s",
 			deputyData.Party.Id, deputyData.Id, err.Error())
 		return nil, err
 	}
@@ -106,7 +106,8 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		UpdatedAt(deputyData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro construindo a estrutura de dados do(a) deputado(a) %s: %s", deputyData.Id, err.Error())
+		log.Errorf("Erro durante a construção da estrutura de dados do(a) deputado(a) %s: %s", deputyData.Id,
+			err.Error())
 		return nil, err
 	}
 
