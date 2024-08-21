@@ -2,13 +2,14 @@ package queries
 
 type propositionSqlManager struct{}
 
-func (propositionSqlManager) Insert() string {
-	return `INSERT INTO proposition(code, original_text_url, title, content, submitted_at, image_url)
-			VALUES ($1, $2, $3, $4, $5, '') RETURNING id`
-}
-
 func Proposition() *propositionSqlManager {
 	return &propositionSqlManager{}
+}
+
+func (propositionSqlManager) Insert() string {
+	return `INSERT INTO proposition(code, original_text_url, title, content, submitted_at, image_url,
+            	proposition_type_id, specific_type)
+			VALUES ($1, $2, $3, $4, $5, '', $6, $7) RETURNING id`
 }
 
 type propositionSelectSqlManager struct{}
@@ -18,15 +19,9 @@ func (propositionSqlManager) Select() *propositionSelectSqlManager {
 }
 
 func (propositionSelectSqlManager) ByDate() string {
-	return `SELECT COALESCE(id, '00000000-0000-0000-0000-000000000000') AS proposition_id,
-    			COALESCE(code, 0) AS proposition_code,
-    			COALESCE(original_text_url, '') AS proposition_original_text_url,
-       			COALESCE(title, '') AS proposition_title,
-    			COALESCE(content, '') AS proposition_content,
-    			COALESCE(submitted_at, '1970-01-01 00:00:00') AS proposition_submitted_at,
-       			COALESCE(active, true) AS proposition_active,
-    			COALESCE(created_at, '1970-01-01 00:00:00') AS proposition_created_at,
-    			COALESCE(updated_at, '1970-01-01 00:00:00') AS proposition_updated_at
+	return `SELECT id AS proposition_id, code AS proposition_code, original_text_url AS proposition_original_text_url,
+       			title AS proposition_title, content AS proposition_content, submitted_at AS proposition_submitted_at,
+       			created_at AS proposition_created_at, updated_at AS proposition_updated_at
     		FROM proposition WHERE active = true AND DATE(submitted_at) = $1`
 }
 

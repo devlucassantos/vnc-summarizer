@@ -23,13 +23,7 @@ func (partySqlManager) Select() *partySelectSqlManager {
 }
 
 func (partySelectSqlManager) ByCode() string {
-	return `SELECT COALESCE(id, '00000000-0000-0000-0000-000000000000') AS party_id,
-        		COALESCE(code, 0) AS party_code,
-        		COALESCE(name, '') AS party_name,
-        		COALESCE(acronym, '') AS party_acronym,
-        		COALESCE(image_url, '') AS party_image_url,
-        		COALESCE(active, true) AS party_active,
-        		COALESCE(created_at, '1970-01-01 00:00:00') AS party_created_at,
-        		COALESCE(updated_at, '1970-01-01 00:00:00') AS party_updated_at
+	return `SELECT id AS party_id, code AS party_code, name AS party_name, acronym AS party_acronym,
+       			image_url AS party_image_url, created_at AS party_created_at, updated_at AS party_updated_at
 			FROM party WHERE active = true AND code = $1`
 }

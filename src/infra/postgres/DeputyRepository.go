@@ -6,15 +6,15 @@ import (
 	"github.com/devlucassantos/vnc-domains/src/domains/party"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
-	"vnc-write-api/infra/dto"
-	"vnc-write-api/infra/postgres/queries"
+	"vnc-summarizer/infra/dto"
+	"vnc-summarizer/infra/postgres/queries"
 )
 
 type Deputy struct {
-	connectionManager ConnectionManagerInterface
+	connectionManager connectionManagerInterface
 }
 
-func NewDeputyRepository(connectionManager ConnectionManagerInterface) *Deputy {
+func NewDeputyRepository(connectionManager connectionManagerInterface) *Deputy {
 	return &Deputy{
 		connectionManager: connectionManager,
 	}
@@ -25,7 +25,7 @@ func (instance Deputy) CreateDeputy(deputy deputy.Deputy) (*uuid.UUID, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	var deputyId uuid.UUID
 	deputyParty := deputy.Party()
@@ -45,7 +45,7 @@ func (instance Deputy) UpdateDeputy(deputy deputy.Deputy) error {
 	if err != nil {
 		return err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	deputyParty := deputy.Party()
 	_, err = postgresConnection.Exec(queries.Deputy().Update(), deputy.Name(), deputy.ElectoralName(),
@@ -64,7 +64,7 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	var deputyData dto.Deputy
 	err = postgresConnection.Get(&deputyData, queries.Deputy().Select().ByCode(), code)
@@ -83,12 +83,11 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		Name(deputyData.Party.Name).
 		Acronym(deputyData.Party.Acronym).
 		ImageUrl(deputyData.Party.ImageUrl).
-		Active(deputyData.Party.Active).
 		CreatedAt(deputyData.Party.CreatedAt).
 		UpdatedAt(deputyData.Party.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro durante a construção da estrutura de dados do partido %s do(a) deputado(a) %s: %s",
+		log.Errorf("Erro ao validar os dados do partido %s do(a) deputado(a) %s: %s",
 			deputyData.Party.Id, deputyData.Id, err.Error())
 		return nil, err
 	}
@@ -101,12 +100,11 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		ElectoralName(deputyData.ElectoralName).
 		ImageUrl(deputyData.ImageUrl).
 		Party(*deputyParty).
-		Active(deputyData.Active).
 		CreatedAt(deputyData.CreatedAt).
 		UpdatedAt(deputyData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro durante a construção da estrutura de dados do(a) deputado(a) %s: %s", deputyData.Id,
+		log.Errorf("Erro ao validar os dados do(a) deputado(a) %s: %s", deputyData.Id,
 			err.Error())
 		return nil, err
 	}

@@ -1,17 +1,17 @@
-# vnc-write-api
+# vnc-summarizer
 
 🌍 *[English](README.md) ∙ [Português](README_pt.md)*
 
-`vnc-write-api` is the repository responsible for coordinating data modifications in the [Você na Câmara (VNC)](#você-na-câmara-vnc)
-platform databases. In this repository you will find the source code of the VNC Write API and also the container
-responsible for executing this code, so you can easily run the project.
+`vnc-summarizer` is the repository responsible for the software that summarizes the propositions displayed in the
+[Você na Câmara (VNC)](#você-na-câmara-vnc) platform. In this repository you will find the source code for the main VNC
+software and also the container responsible for running this code, so you can easily run the project.
 
 ## How to run
 
 ### Prerequisites
 
 To run this code you will need to fill in some fields of the `.env` file present in the _config_ directory
-(`./src/api/config/.env`). In this file you can see that some fields are already filled, this is because they are
+(`./src/config/.env`). In this file you can see that some fields are already filled, this is because they are
 default configurations that can be used if you choose not to modify any of the pre-configured containers to run the
 repositories that make up the VNC,  however feel free to modify any of these variables to make the project adapt to your
 environment. Also note that some of these variables are not filled in, this is because these variables have their use
@@ -22,12 +22,12 @@ the AI service currently used by VNC.
 * `UNI_CLOUD_KEY` → To fill in this variable an [API key must be created in UniCLOUD](https://cloud.unidoc.io/#/api-keys),
 the PDF manipulation service currently used by VNC.
 
-> Note that to properly run `vnc-write-api` you will need to have the [`vnc-databases` containers](https://github.com/devlucassantos/vnc-databases)
+> Note that to properly run `vnc-summarizer` you will need to have the [`vnc-databases` containers](https://github.com/devlucassantos/vnc-databases)
 running so that this application's container has access to the databases necessary to query and modify the data.
 
 ### Running via Docker
 
-To run the API you will need to have [Docker](https://www.docker.com) installed on your machine and run the following
+To run the program you will need to have [Docker](https://www.docker.com) installed on your machine and run the following
 commands in the root directory of this project:
 
 ````shell
@@ -36,12 +36,11 @@ docker compose up
 
 ### Documentation
 
-After running the project, all the available routes for accessing the API can be found via the link:
+After running the project, the program will begin searching and summarizing the propositions, finally inserting them
+into the platform's database.
 
-> [http://localhost:8083/api/v1/documentation/index.html](http://localhost:8083/api/v1/documentation/index.html)
+## Você na Câmara (VNC)
 
-## Você Na Câmara (VNC)
-
-Você Na Câmara (VNC) is a news platform that seeks to simplify the proposals under debate in the Chamber of Deputies of
-Brazil aiming to synthesize the ideas of these propositions through the use of Artificial Intelligence (AI) so that
+Você na Câmara (VNC) is a news platform that seeks to simplify the propositions under debate in the Chamber of Deputies
+of Brazil aiming to synthesize the ideas of these propositions through the use of Artificial Intelligence (AI) so that
 these documents can have their ideas expressed in a simple and objective way for the general population.

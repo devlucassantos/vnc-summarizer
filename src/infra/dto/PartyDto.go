@@ -11,7 +11,6 @@ type Party struct {
 	Name      string    `db:"party_name"`
 	Acronym   string    `db:"party_acronym"`
 	ImageUrl  string    `db:"party_image_url"`
-	Active    bool      `db:"party_active"`
 	CreatedAt time.Time `db:"party_created_at"`
 	UpdatedAt time.Time `db:"party_updated_at"`
 }

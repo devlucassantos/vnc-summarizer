@@ -12,7 +12,6 @@ type Deputy struct {
 	Name          string    `db:"deputy_name"`
 	ElectoralName string    `db:"deputy_electoral_name"`
 	ImageUrl      string    `db:"deputy_image_url"`
-	Active        bool      `db:"deputy_active"`
 	CreatedAt     time.Time `db:"deputy_created_at"`
 	UpdatedAt     time.Time `db:"deputy_updated_at"`
 	*Party
