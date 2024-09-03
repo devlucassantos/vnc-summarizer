@@ -690,7 +690,7 @@ func getArticleTypeDescription(articleTypeCode string) (string, error) {
 
 func getPropositionImage(propositionCode int, propositionContent string) (string, error) {
 	prompt, err := requestToChatGpt("Gere um prompt para o DALL·E gerar uma imagem para um site jornalistico "+
-		"sobre a seguinte proposição política, é importante que prompt esteja de acordo com as políticas do DALL·E: ",
+		"sobre a seguinte proposição política, é importante que o prompt esteja de acordo com as políticas do DALL·E: ",
 		propositionContent,
 		fmt.Sprint("Geração do prompt da imagem da proposição ", propositionCode))
 	if err != nil {
