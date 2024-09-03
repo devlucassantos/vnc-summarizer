@@ -49,8 +49,8 @@ func (instance Newsletter) CreateNewsletter(newsletter newsletter.Newsletter, pr
 	for _, propositionData := range propositions {
 		_, err = transaction.Exec(queries.NewsletterProposition().Insert(), newsletterId, propositionData.Id())
 		if err != nil {
-			log.Errorf("Erro ao cadastrar proposição %d como parte integrante do boletim do dia  %s: %s",
-				propositionData.Code(), formattedReferenceDate, err.Error())
+			log.Errorf("Erro ao cadastrar proposição %d como parte integrante do boletim %s do dia %s: %s",
+				newsletterId, propositionData.Code(), formattedReferenceDate, err.Error())
 			continue
 		}
 
@@ -58,8 +58,10 @@ func (instance Newsletter) CreateNewsletter(newsletter newsletter.Newsletter, pr
 			formattedReferenceDate)
 	}
 
-	var newsId uuid.UUID
-	err = transaction.QueryRow(queries.Article().Insert().Newsletter(), newsletterId).Scan(&newsId)
+	var articleId uuid.UUID
+	newsletterArticle := newsletter.Article()
+	articleType := newsletterArticle.Type()
+	err = transaction.QueryRow(queries.Article().Insert().Newsletter(), newsletterId, articleType.Id()).Scan(&articleId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar o boletim do dia %s como matéria: %s", formattedReferenceDate, err.Error())
 		return err
@@ -73,7 +75,7 @@ func (instance Newsletter) CreateNewsletter(newsletter newsletter.Newsletter, pr
 	}
 
 	log.Infof("Boletim do dia %s registrado com sucesso com o ID %s (ID da Matéria: %s)",
-		formattedReferenceDate, newsletterId, newsId)
+		formattedReferenceDate, newsletterId, articleId)
 	return nil
 }
 
@@ -104,8 +106,8 @@ func (instance Newsletter) UpdateNewsletter(newsletter newsletter.Newsletter, ne
 	for _, propositionData := range newPropositions {
 		_, err = transaction.Exec(queries.NewsletterProposition().Insert(), newsletter.Id(), propositionData.Id())
 		if err != nil {
-			log.Errorf("Erro ao cadastrar proposição %d como parte integrante do boletim %s do dia  %s: %s",
-				newsletter.Id(), propositionData.Code(), formattedReferenceDate, err.Error())
+			log.Errorf("Erro ao cadastrar proposição %d como parte integrante do boletim %s do dia %s: %s",
+				propositionData.Code(), newsletter.Id(), formattedReferenceDate, err.Error())
 			continue
 		}
 

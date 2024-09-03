@@ -13,11 +13,15 @@ func (articleSqlManager) Insert() *articleInsertSqlManager {
 }
 
 func (articleInsertSqlManager) Proposition() string {
-	return `INSERT INTO article(proposition_id) VALUES ($1) RETURNING id`
+	return `INSERT INTO article(proposition_id, article_type_id)
+			VALUES ($1, $2)
+			RETURNING id`
 }
 
 func (articleInsertSqlManager) Newsletter() string {
-	return `INSERT INTO article(newsletter_id) VALUES ($1) RETURNING id`
+	return `INSERT INTO article(newsletter_id, article_type_id)
+			VALUES ($1, $2)
+			RETURNING id`
 }
 
 type articleUpdateSqlManager struct{}

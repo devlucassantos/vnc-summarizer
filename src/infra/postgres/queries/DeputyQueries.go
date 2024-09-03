@@ -8,7 +8,8 @@ func Deputy() *deputySqlManager {
 
 func (deputySqlManager) Insert() string {
 	return `INSERT INTO deputy(code, cpf, name, electoral_name, image_url, party_id)
-			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id`
 }
 
 func (deputySqlManager) Update() string {

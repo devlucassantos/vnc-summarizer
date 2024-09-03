@@ -31,9 +31,9 @@ type ChatGptResponse struct {
 }
 
 func requestToChatGpt(command, content, purpose string) (string, error) {
-	characterLimitPerRequest, err := strconv.Atoi(os.Getenv("CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST"))
+	characterLimitPerRequest, err := strconv.Atoi(os.Getenv("OPENAI_CHATGPT_API_CHARACTER_LIMIT_PER_REQUEST"))
 	if err != nil {
-		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST "+
+		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente OPENAI_CHATGPT_API_CHARACTER_LIMIT_PER_REQUEST "+
 			"para inteiro: ", err))
 		log.Error(err.Error())
 		return "", err
@@ -58,10 +58,10 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 		}
 	}
 
-	requestLimitPerMinute, err := strconv.Atoi(os.Getenv("CHAT_GPT_REQUEST_LIMIT_PER_MINUTE"))
+	requestLimitPerMinute, err := strconv.Atoi(os.Getenv("OPENAI_CHATGPT_API_REQUEST_LIMIT_PER_MINUTE"))
 	if err != nil {
-		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente CHAT_GPT_REQUEST_LIMIT_PER_MINUTE para "+
-			"inteiro: ", err))
+		err = errors.New(fmt.Sprint("Erro ao converter variável de ambiente OPENAI_CHATGPT_API_REQUEST_LIMIT_PER_MINUTE"+
+			" para inteiro: ", err))
 		log.Error(err.Error())
 		return "", err
 	}
@@ -76,7 +76,7 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 		}
 
 		requestBody, err := json.Marshal(ChatGptRequest{
-			Model: "gpt-3.5-turbo",
+			Model: os.Getenv("OPENAI_CHATGPT_API_MODEL"),
 			Messages: []ChatGptMessage{
 				{
 					Role:    "user",
@@ -96,7 +96,7 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 			log.Error("Erro ao criar a requisição para o ChatGPT: ", err)
 			return "", nil
 		}
-		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("CHAT_GPT_KEY")))
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
 		request.Header.Set("Content-Type", "application/json")
 
 		response, err := client.Do(request)
@@ -105,6 +105,12 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 			return "", nil
 		}
 		defer closeResponseBody(response)
+
+		if response.StatusCode != http.StatusOK {
+			errorMessage := fmt.Sprintf("Erro a realizar requisição para o ChatGPT: (Status code: %s)", response.Status)
+			log.Error(errorMessage)
+			return "", errors.New(errorMessage)
+		}
 
 		var chatGptResponse ChatGptResponse
 		err = json.NewDecoder(response.Body).Decode(&chatGptResponse)
@@ -118,9 +124,9 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 				log.Warnf("Erro ao realizar a requisição para o ChatGPT (%s), dividindo o conteúdo em partes "+
 					"menores", purpose)
 
-				characterLimit, err := strconv.Atoi(os.Getenv("CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST"))
+				characterLimit, err := strconv.Atoi(os.Getenv("OPENAI_CHATGPT_API_CHARACTER_LIMIT_PER_REQUEST"))
 				if err != nil {
-					log.Error("Erro ao converter variável de ambiente CHAT_GPT_CHARACTER_LIMIT_PER_REQUEST para "+
+					log.Error("Erro ao converter variável de ambiente OPENAI_CHATGPT_API_CHARACTER_LIMIT_PER_REQUEST para "+
 						"inteiro: ", err)
 				} else if characterLimitPerRequest == characterLimit {
 					time.Sleep(time.Minute) // To avoid excessive requests to ChatGPT
@@ -129,8 +135,9 @@ func requestToChatGptWithCharacterLimitPerRequest(command, content, purpose stri
 				}
 			}
 
-			log.Error("Não foi possível obter o resultado da solicitação ao ChatGPT")
-			return "", errors.New("não foi possível obter o resultado da solicitação ao ChatGPT")
+			errorMessage := "não foi possível obter o resultado da solicitação ao ChatGPT"
+			log.Error(errorMessage)
+			return "", errors.New(errorMessage)
 		}
 
 		log.Infof("%dª comunicação realizada com sucesso para o ChatGPT: %s", index+1, purpose)

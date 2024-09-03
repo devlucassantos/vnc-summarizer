@@ -1,6 +1,6 @@
 services:
   vnc-summarizer:
-    image: golang:1.22-alpine
+    image: golang:1.23
     container_name: vnc_summarizer
     restart: always
     working_dir: /app

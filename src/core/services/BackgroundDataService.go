@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/devlucassantos/vnc-domains/src/domains/article"
 	"github.com/devlucassantos/vnc-domains/src/domains/deputy"
 	"github.com/devlucassantos/vnc-domains/src/domains/external"
 	"github.com/devlucassantos/vnc-domains/src/domains/newsletter"
@@ -27,24 +28,24 @@ import (
 )
 
 type BackgroundData struct {
-	deputyRepository          repositories.Deputy
-	externalAuthorRepository  repositories.ExternalAuthor
-	partyRepository           repositories.Party
-	propositionRepository     repositories.Proposition
-	propositionTypeRepository repositories.PropositionType
-	newsletterRepository      repositories.Newsletter
+	deputyRepository         repositories.Deputy
+	externalAuthorRepository repositories.ExternalAuthor
+	partyRepository          repositories.Party
+	propositionRepository    repositories.Proposition
+	newsletterRepository     repositories.Newsletter
+	articleTypeRepository    repositories.ArticleType
 }
 
 func NewBackgroundDataService(deputyRepository repositories.Deputy, externalAuthorRepository repositories.ExternalAuthor,
 	partyRepository repositories.Party, propositionRepository repositories.Proposition,
-	propositionTypeRepository repositories.PropositionType, newsletterRepository repositories.Newsletter) *BackgroundData {
+	newsletterRepository repositories.Newsletter, articleTypeRepository repositories.ArticleType) *BackgroundData {
 	return &BackgroundData{
-		deputyRepository:          deputyRepository,
-		externalAuthorRepository:  externalAuthorRepository,
-		partyRepository:           partyRepository,
-		propositionRepository:     propositionRepository,
-		propositionTypeRepository: propositionTypeRepository,
-		newsletterRepository:      newsletterRepository,
+		deputyRepository:         deputyRepository,
+		externalAuthorRepository: externalAuthorRepository,
+		partyRepository:          partyRepository,
+		propositionRepository:    propositionRepository,
+		newsletterRepository:     newsletterRepository,
+		articleTypeRepository:    articleTypeRepository,
 	}
 }
 
@@ -139,7 +140,8 @@ func (instance BackgroundData) RegisterNewPropositions() {
 
 		var externalAuthors []external.ExternalAuthor
 		for _, externalAuthorData := range propositionData.ExternalAuthors() {
-			registeredExternalAuthor, err := instance.externalAuthorRepository.GetExternalAuthor(externalAuthorData)
+			registeredExternalAuthor, err := instance.externalAuthorRepository.GetExternalAuthorByNameAndType(
+				externalAuthorData.Name(), externalAuthorData.Type())
 			if err != nil {
 				continue
 			}
@@ -340,13 +342,13 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
-	propositionTypeCode := fmt.Sprint(propositionData["codTipo"])
-	propositionType, err := instance.propositionTypeRepository.GetPropositionTypeByCode(propositionTypeCode)
+	articleTypeCode := fmt.Sprint(propositionData["codTipo"])
+	articleType, err := instance.articleTypeRepository.GetArticleTypeByCodeOrDefaultType(articleTypeCode)
 	if err != nil {
 		return nil, err
 	}
 
-	specifType, err := getPropositionTypeDescription(propositionTypeCode)
+	specificType, err := getArticleTypeDescription(articleTypeCode)
 	if err != nil {
 		return nil, err
 	}
@@ -383,15 +385,28 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
+	propositionImageUrl, err := getPropositionImage(propositionCode, propositionContentSummary)
+	if err != nil {
+		return nil, err
+	}
+
+	articleData, err := article.NewBuilder().Type(*articleType).Build()
+	if err != nil {
+		log.Errorf("Erro ao validar os dados da matéria da proposição %d: %s", propositionCode,
+			err.Error())
+		return nil, err
+	}
+
 	propositionBuilder := proposition.NewBuilder().
 		Code(propositionCode).
 		Title(strings.Trim(propositionTitle, "\"")).
 		Content(propositionContentSummary).
 		SubmittedAt(submittedAt).
-		Type(*propositionType).
-		SpecificType(specifType).
+		ImageUrl(propositionImageUrl).
+		SpecificType(specificType).
 		Deputies(deputies).
-		ExternalAuthors(externalAuthors)
+		ExternalAuthors(externalAuthors).
+		Article(*articleData)
 
 	if utils.IsUrlValid(originalTextUrl) {
 		propositionBuilder.OriginalTextUrl(originalTextUrl)
@@ -647,7 +662,7 @@ func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interfac
 	return deputies, externalAuthors, nil
 }
 
-func getPropositionTypeDescription(propositionTypeCode string) (string, error) {
+func getArticleTypeDescription(articleTypeCode string) (string, error) {
 	url := "https://dadosabertos.camara.leg.br/api/v2/referencias/proposicoes/siglaTipo"
 	response, err := getRequest(url)
 	if err != nil {
@@ -659,18 +674,51 @@ func getPropositionTypeDescription(propositionTypeCode string) (string, error) {
 		return "", err
 	}
 
-	propositionTypes, err := getDataFromRequestMap(body)
+	articleTypes, err := getDataFromRequestMap(body)
 	if err != nil {
 		return "", err
 	}
 
-	for _, propositionType := range propositionTypes {
-		if fmt.Sprint(propositionType["cod"]) == propositionTypeCode {
-			return fmt.Sprintf("%s (%s)", propositionType["nome"], propositionType["cod"]), nil
+	for _, articleType := range articleTypes {
+		if fmt.Sprint(articleType["cod"]) == articleTypeCode {
+			return fmt.Sprintf("%s (%s)", articleType["nome"], articleType["cod"]), nil
 		}
 	}
 
 	return "", nil
+}
+
+func getPropositionImage(propositionCode int, propositionContent string) (string, error) {
+	prompt, err := requestToChatGpt("Gere um prompt para o DALL·E gerar uma imagem para um site jornalistico "+
+		"sobre a seguinte proposição política, é importante que prompt esteja de acordo com as políticas do DALL·E: ",
+		propositionContent,
+		fmt.Sprint("Geração do prompt da imagem da proposição ", propositionCode))
+	if err != nil {
+		return "", err
+	}
+
+	purpose := fmt.Sprint("Geração da imagem da proposição ", propositionCode)
+	dallEImageUrl, err := requestToDallE(prompt, purpose)
+	if err != nil {
+		return "", err
+	}
+
+	response, err := getRequest(dallEImageUrl)
+	if err != nil {
+		return "", err
+	}
+
+	image, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Fatal("Erro ao ler a imagem da proposição %d: %s", propositionCode, err)
+	}
+
+	imageUrl, err := savePropositionImageInAwsS3(propositionCode, image)
+	if err != nil {
+		return "", err
+	}
+
+	return imageUrl, nil
 }
 
 func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
@@ -725,14 +773,14 @@ func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 			formattedReferenceDate)
 	}
 
-	newsletterData, err := generateNewsletter(propositions, referenceDate)
+	newsletterData, err := instance.generateNewsletter(propositions, referenceDate)
 	if err != nil {
 		for attempt := 1; attempt <= 3; attempt++ {
 			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
 			log.Warnf("Não foi possível criar o boletim do dia %s na %dª tentativa, tentando novamente em %d "+
 				"segundos", formattedReferenceDate, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
-			newsletterData, err = generateNewsletter(propositions, referenceDate)
+			newsletterData, err = instance.generateNewsletter(propositions, referenceDate)
 			if err == nil {
 				break
 			}
@@ -770,7 +818,7 @@ func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 	return
 }
 
-func generateNewsletter(propositions []proposition.Proposition, referenceDate time.Time) (*newsletter.Newsletter, error) {
+func (instance BackgroundData) generateNewsletter(propositions []proposition.Proposition, referenceDate time.Time) (*newsletter.Newsletter, error) {
 	formattedReferenceDate := referenceDate.Format("02/01/2006")
 
 	var contentOfPropositions string
@@ -788,10 +836,23 @@ func generateNewsletter(propositions []proposition.Proposition, referenceDate ti
 		return nil, err
 	}
 
+	articleType, err := instance.articleTypeRepository.GetArticleTypeByCodeOrDefaultType("newsletter")
+	if err != nil {
+		return nil, err
+	}
+
+	articleData, err := article.NewBuilder().Type(*articleType).Build()
+	if err != nil {
+		log.Errorf("Erro ao validar os dados da matéria do boletim do dia %d: %s", formattedReferenceDate,
+			err.Error())
+		return nil, err
+	}
+
 	newsletterData, err := newsletter.NewBuilder().
 		ReferenceDate(referenceDate).
 		Title(fmt.Sprint("Boletim do dia ", formattedReferenceDate)).
 		Description(newsletterDescription).
+		Article(*articleData).
 		Build()
 	if err != nil {
 		log.Errorf("Erro ao validar os dados do boletim do dia %s: %s",

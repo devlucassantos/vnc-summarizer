@@ -15,7 +15,7 @@ func main() {
 		log.Fatal("Arquivo de variáveis de ambiente não encontrado: ", err)
 	}
 
-	err = license.SetMeteredKey(os.Getenv("UNI_CLOUD_KEY"))
+	err = license.SetMeteredKey(os.Getenv("UNICLOUD_KEY"))
 	if err != nil {
 		log.Error("Erro ao validar chave para manipulação de PDF: ", err.Error())
 		return

@@ -7,7 +7,9 @@ func Party() *partySqlManager {
 }
 
 func (partySqlManager) Insert() string {
-	return `INSERT INTO party(code, name, acronym, image_url) VALUES ($1, $2, $3, $4) RETURNING id`
+	return `INSERT INTO party(code, name, acronym, image_url)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id`
 }
 
 func (partySqlManager) Update() string {
@@ -25,5 +27,6 @@ func (partySqlManager) Select() *partySelectSqlManager {
 func (partySelectSqlManager) ByCode() string {
 	return `SELECT id AS party_id, code AS party_code, name AS party_name, acronym AS party_acronym,
        			image_url AS party_image_url, created_at AS party_created_at, updated_at AS party_updated_at
-			FROM party WHERE active = true AND code = $1`
+			FROM party
+			WHERE active = true AND code = $1`
 }

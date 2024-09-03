@@ -7,6 +7,6 @@ import (
 
 func GetBackgroundDataService() interfaces.BackgroundData {
 	return services.NewBackgroundDataService(GetDeputyPostgresRepository(), GetExternalAuthorPostgresRepository(),
-		GetPartyPostgresRepository(), GetPropositionPostgresRepository(), GetPropositionTypePostgresRepository(),
-		GetNewsletterPostgresRepository())
+		GetPartyPostgresRepository(), GetPropositionPostgresRepository(), GetNewsletterPostgresRepository(),
+		GetArticleTypePostgresRepository())
 }

@@ -7,7 +7,9 @@ func ExternalAuthor() *externalAuthorSqlManager {
 }
 
 func (externalAuthorSqlManager) Insert() string {
-	return `INSERT INTO external_author(name, type) VALUES ($1, $2) RETURNING id`
+	return `INSERT INTO external_author(name, type)
+			VALUES ($1, $2)
+			RETURNING id`
 }
 
 type externalAuthorSelectSqlManager struct{}

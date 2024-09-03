@@ -22,7 +22,7 @@ func NewPostgresConnectionManager() *ConnectionManager {
 }
 
 func (ConnectionManager) createConnection() (*sqlx.DB, error) {
-	db, err := sqlx.Open("postgres", getPostgresConnectionURI())
+	db, err := sqlx.Open("postgres", getPostgresConnectionUri())
 	if err != nil {
 		log.Error("Erro ao criar conexão com o banco de dados Postgres: ", err.Error())
 		return nil, err
@@ -48,7 +48,7 @@ func (ConnectionManager) rollbackTransaction(transaction *sqlx.Tx) {
 	}
 }
 
-func getPostgresConnectionURI() string {
+func getPostgresConnectionUri() string {
 	host := os.Getenv("POSTGRESQL_HOST")
 	port := os.Getenv("POSTGRESQL_PORT")
 	user := os.Getenv("POSTGRESQL_USER")

@@ -17,9 +17,15 @@ para rodar os repositórios que compõem o VNC, entretanto fique a vontade para 
 de modo a fazer o projeto se adaptar ao seu ambiente. Observe também que algumas destas variáveis não estão preenchidas,
 isto ocorre porque essas variáveis tem seu uso vinculado a conta de cada usuário em plataformas externas ao VNC e por
 isso devem ter seus valores gerados por cada usuário que deseje utilizar as plataformas. Essas chaves são:
-* `CHAT_GPT_KEY` → Para o preenchimento desta variável deve-se [criar uma chave de API no ChatGPT](https://platform.openai.com/account/api-keys), 
+* `AWS_REGION` → Região/Servidor da conta do usuário do IAM na AWS (Para uma explicação mais detalhada sobre as credenciais
+de acesso da AWS, acesse a [documentação oficial da AWS sobre o gerenciamento de chaves de acesso de usuários do 
+IAM](https://docs.aws.amazon.com/pt_br/IAM/latest/UserGuide/id_credentials_access-keys.html)). 
+* `AWS_ACCESS_KEY_ID` → ID de acesso do usuário do IAM na AWS.
+* `AWS_SECRET_ACCESS_KEY` → Chave secreta de acesso do usuário do IAM na AWS.
+* `AWS_S3_BUCKET` → Nome do bucket onde as imagens das proposições serão salvas no AWS S3.
+* `OPENAI_API_KEY` → Para o preenchimento desta variável deve-se [criar uma chave de API no ChatGPT](https://platform.openai.com/account/api-keys), 
 serviço de IA atualmente utilizado pelo VNC.
-* `UNI_CLOUD_KEY` → Para o preenchimento desta variável deve-se [criar uma chave de API no UniCLOUD](https://cloud.unidoc.io/#/api-keys),
+* `UNICLOUD_KEY` → Para o preenchimento desta variável deve-se [criar uma chave de API no UniCLOUD](https://cloud.unidoc.io/#/api-keys),
 serviço de manipulação de PDFs atualmente utilizado pelo VNC.
 
 > Observe que para executar corretamente o `vnc-summarizer` você precisará ter os [containers do `vnc-databases`](https://github.com/devlucassantos/vnc-databases)

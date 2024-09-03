@@ -35,9 +35,8 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 	defer instance.connectionManager.rollbackTransaction(transaction)
 
 	var propositionId uuid.UUID
-	propositionType := proposition.Type()
 	err = transaction.QueryRow(queries.Proposition().Insert(), proposition.Code(), proposition.OriginalTextUrl(),
-		proposition.Title(), proposition.Content(), proposition.SubmittedAt(), propositionType.Id(),
+		proposition.Title(), proposition.Content(), proposition.SubmittedAt(), proposition.ImageUrl(),
 		proposition.SpecificType()).Scan(&propositionId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar a proposição %d: %s", proposition.Code(), err.Error())
@@ -74,7 +73,9 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 	}
 
 	var articleId uuid.UUID
-	err = transaction.QueryRow(queries.Article().Insert().Proposition(), propositionId).Scan(&articleId)
+	propositionArticle := proposition.Article()
+	articleType := propositionArticle.Type()
+	err = transaction.QueryRow(queries.Article().Insert().Proposition(), propositionId, articleType.Id()).Scan(&articleId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar a proposição %d como matéria: %s", proposition.Code(), err.Error())
 		return err

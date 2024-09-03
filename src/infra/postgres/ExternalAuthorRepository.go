@@ -38,7 +38,7 @@ func (instance ExternalAuthor) CreateExternalAuthor(externalAuthor external.Exte
 	return &externalAuthorId, nil
 }
 
-func (instance ExternalAuthor) GetExternalAuthor(externalAuthor external.ExternalAuthor) (*external.ExternalAuthor, error) {
+func (instance ExternalAuthor) GetExternalAuthorByNameAndType(name string, _type string) (*external.ExternalAuthor, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
 		return nil, err
@@ -46,14 +46,13 @@ func (instance ExternalAuthor) GetExternalAuthor(externalAuthor external.Externa
 	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	var externalAuthorData dto.ExternalAuthor
-	err = postgresConnection.Get(&externalAuthorData, queries.ExternalAuthor().Select().ByNameAndType(), externalAuthor.Name(),
-		externalAuthor.Type())
+	err = postgresConnection.Get(&externalAuthorData, queries.ExternalAuthor().Select().ByNameAndType(), name, _type)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Infof("Autor externo %s não encontrado no banco de dados", externalAuthor.Name)
+			log.Infof("Autor externo %s não encontrado no banco de dados", name)
 			return nil, nil
 		}
-		log.Errorf("Erro ao obter os dados do autor externo %s no banco de dados: %s", externalAuthor.Name, err.Error())
+		log.Errorf("Erro ao obter os dados do autor externo %s no banco de dados: %s", name, err.Error())
 		return nil, err
 	}
 
@@ -65,8 +64,7 @@ func (instance ExternalAuthor) GetExternalAuthor(externalAuthor external.Externa
 		UpdatedAt(externalAuthorData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro ao validar os dados do autor externo %s: %s", externalAuthorData.Id,
-			err.Error())
+		log.Errorf("Erro ao validar os dados do autor externo %s: %s", name, err.Error())
 		return nil, err
 	}
 

@@ -25,10 +25,10 @@ func GetPropositionPostgresRepository() repositories.Proposition {
 	return postgres.NewPropositionRepository(GetPostgresDatabaseManager())
 }
 
-func GetPropositionTypePostgresRepository() repositories.PropositionType {
-	return postgres.NewPropositionTypeRepository(GetPostgresDatabaseManager())
-}
-
 func GetNewsletterPostgresRepository() repositories.Newsletter {
 	return postgres.NewNewsletterRepository(GetPostgresDatabaseManager())
+}
+
+func GetArticleTypePostgresRepository() repositories.ArticleType {
+	return postgres.NewArticleTypeRepository(GetPostgresDatabaseManager())
 }

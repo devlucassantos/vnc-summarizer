@@ -7,5 +7,5 @@ import (
 
 type ExternalAuthor interface {
 	CreateExternalAuthor(externalAuthor external.ExternalAuthor) (*uuid.UUID, error)
-	GetExternalAuthor(externalAuthor external.ExternalAuthor) (*external.ExternalAuthor, error)
+	GetExternalAuthorByNameAndType(name string, _type string) (*external.ExternalAuthor, error)
 }

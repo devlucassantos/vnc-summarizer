@@ -7,13 +7,16 @@ func Newsletter() *newsletterSqlManager {
 }
 
 func (newsletterSqlManager) Insert() string {
-	return `INSERT INTO newsletter(reference_date, title, description) VALUES ($1, $2, $3) RETURNING id`
+	return `INSERT INTO newsletter(reference_date, title, description)
+			VALUES ($1, $2, $3)
+			RETURNING id`
 }
 
 func (newsletterSqlManager) Update() string {
 	return `UPDATE newsletter SET description = COALESCE($1, description),
             	updated_at = TIMEZONE('America/Sao_Paulo'::TEXT, NOW())
-            FROM article WHERE newsletter.active = true AND article.active = true AND newsletter.id = $2`
+            FROM article
+            WHERE newsletter.active = true AND article.active = true AND newsletter.id = $2`
 }
 
 type newsletterSelectSqlManager struct{}
