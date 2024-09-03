@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-type ConnectionManagerInterface interface {
+type connectionManagerInterface interface {
 	createConnection() (*sqlx.DB, error)
-	endConnection(*sqlx.DB)
+	closeConnection(*sqlx.DB)
 	rollbackTransaction(*sqlx.Tx)
 }
 
@@ -22,14 +22,9 @@ func NewPostgresConnectionManager() *ConnectionManager {
 }
 
 func (ConnectionManager) createConnection() (*sqlx.DB, error) {
-	uri, err := getPostgresConnectionURI()
+	db, err := sqlx.Open("postgres", getPostgresConnectionUri())
 	if err != nil {
-		return nil, err
-	}
-
-	db, err := sqlx.Open("postgres", uri)
-	if err != nil {
-		log.Error("Erro ao criar conexão com o banco de dados: ", err.Error())
+		log.Error("Erro ao criar conexão com o banco de dados Postgres: ", err.Error())
 		return nil, err
 	}
 	db.SetConnMaxLifetime(time.Minute)
@@ -39,21 +34,21 @@ func (ConnectionManager) createConnection() (*sqlx.DB, error) {
 	return db, nil
 }
 
-func (ConnectionManager) endConnection(connection *sqlx.DB) {
+func (ConnectionManager) closeConnection(connection *sqlx.DB) {
 	err := connection.Close()
 	if err != nil {
-		log.Error("Erro ao encerrar conexão com o banco de dados: ", err.Error())
+		log.Error("Erro ao encerrar conexão com o banco de dados Postgres: ", err.Error())
 	}
 }
 
 func (ConnectionManager) rollbackTransaction(transaction *sqlx.Tx) {
 	err := transaction.Rollback()
 	if err != nil {
-		log.Warn("Erro ao cancelar transação: ", err.Error())
+		log.Warn("Erro ao cancelar transação no banco de dados Postgres: ", err.Error())
 	}
 }
 
-func getPostgresConnectionURI() (string, error) {
+func getPostgresConnectionUri() string {
 	host := os.Getenv("POSTGRESQL_HOST")
 	port := os.Getenv("POSTGRESQL_PORT")
 	user := os.Getenv("POSTGRESQL_USER")
@@ -61,5 +56,5 @@ func getPostgresConnectionURI() (string, error) {
 	databaseName := os.Getenv("POSTGRESQL_DB")
 
 	connectionData := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, databaseName)
-	return connectionData, nil
+	return connectionData
 }

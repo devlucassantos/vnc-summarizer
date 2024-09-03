@@ -1,8 +1,8 @@
 package diconteiner
 
 import (
-	"vnc-write-api/core/interfaces/repositories"
-	"vnc-write-api/infra/postgres"
+	"vnc-summarizer/core/interfaces/repositories"
+	"vnc-summarizer/infra/postgres"
 )
 
 func GetPostgresDatabaseManager() *postgres.ConnectionManager {
@@ -13,8 +13,8 @@ func GetDeputyPostgresRepository() repositories.Deputy {
 	return postgres.NewDeputyRepository(GetPostgresDatabaseManager())
 }
 
-func GetOrganizationPostgresRepository() repositories.Organization {
-	return postgres.NewOrganizationRepository(GetPostgresDatabaseManager())
+func GetExternalAuthorPostgresRepository() repositories.ExternalAuthor {
+	return postgres.NewExternalAuthorRepository(GetPostgresDatabaseManager())
 }
 
 func GetPartyPostgresRepository() repositories.Party {
@@ -27,4 +27,8 @@ func GetPropositionPostgresRepository() repositories.Proposition {
 
 func GetNewsletterPostgresRepository() repositories.Newsletter {
 	return postgres.NewNewsletterRepository(GetPostgresDatabaseManager())
+}
+
+func GetArticleTypePostgresRepository() repositories.ArticleType {
+	return postgres.NewArticleTypeRepository(GetPostgresDatabaseManager())
 }

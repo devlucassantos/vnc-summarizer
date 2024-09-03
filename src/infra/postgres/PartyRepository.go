@@ -5,15 +5,15 @@ import (
 	"github.com/devlucassantos/vnc-domains/src/domains/party"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
-	"vnc-write-api/infra/dto"
-	"vnc-write-api/infra/postgres/queries"
+	"vnc-summarizer/infra/dto"
+	"vnc-summarizer/infra/postgres/queries"
 )
 
 type Party struct {
-	connectionManager ConnectionManagerInterface
+	connectionManager connectionManagerInterface
 }
 
-func NewPartyRepository(connectionManager ConnectionManagerInterface) *Party {
+func NewPartyRepository(connectionManager connectionManagerInterface) *Party {
 	return &Party{
 		connectionManager: connectionManager,
 	}
@@ -24,7 +24,7 @@ func (instance Party) CreateParty(party party.Party) (*uuid.UUID, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	var partyId uuid.UUID
 	err = postgresConnection.QueryRow(queries.Party().Insert(), party.Code(), party.Name(), party.Acronym(),
@@ -43,7 +43,7 @@ func (instance Party) UpdateParty(party party.Party) error {
 	if err != nil {
 		return err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	_, err = postgresConnection.Exec(queries.Party().Update(), party.Name(), party.Acronym(), party.ImageUrl(),
 		party.Code())
@@ -61,7 +61,7 @@ func (instance Party) GetPartyByCode(code int) (*party.Party, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	var partyData dto.Party
 	err = postgresConnection.Get(&partyData, queries.Party().Select().ByCode(), code)
@@ -80,12 +80,11 @@ func (instance Party) GetPartyByCode(code int) (*party.Party, error) {
 		Name(partyData.Name).
 		Acronym(partyData.Acronym).
 		ImageUrl(partyData.ImageUrl).
-		Active(partyData.Active).
 		CreatedAt(partyData.CreatedAt).
 		UpdatedAt(partyData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro durante a construção da estrutura de dados do partido %s: %s", partyData.Id, err.Error())
+		log.Errorf("Erro ao validar os dados do partido %s: %s", partyData.Id, err.Error())
 		return nil, err
 	}
 

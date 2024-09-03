@@ -5,15 +5,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
 	"time"
-	"vnc-write-api/infra/dto"
-	"vnc-write-api/infra/postgres/queries"
+	"vnc-summarizer/infra/dto"
+	"vnc-summarizer/infra/postgres/queries"
 )
 
 type Proposition struct {
-	connectionManager ConnectionManagerInterface
+	connectionManager connectionManagerInterface
 }
 
-func NewPropositionRepository(connectionManager ConnectionManagerInterface) *Proposition {
+func NewPropositionRepository(connectionManager connectionManagerInterface) *Proposition {
 	return &Proposition{
 		connectionManager: connectionManager,
 	}
@@ -24,7 +24,7 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 	if err != nil {
 		return err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	transaction, err := postgresConnection.Beginx()
 	if err != nil {
@@ -36,7 +36,8 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 
 	var propositionId uuid.UUID
 	err = transaction.QueryRow(queries.Proposition().Insert(), proposition.Code(), proposition.OriginalTextUrl(),
-		proposition.Title(), proposition.Content(), proposition.SubmittedAt()).Scan(&propositionId)
+		proposition.Title(), proposition.Content(), proposition.SubmittedAt(), proposition.ImageUrl(),
+		proposition.SpecificType()).Scan(&propositionId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar a proposição %d: %s", proposition.Code(), err.Error())
 		return err
@@ -45,7 +46,7 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 	for _, deputyData := range proposition.Deputies() {
 		var propositionAuthorId uuid.UUID
 		deputyParty := deputyData.Party()
-		err = transaction.QueryRow(queries.PropositionAuthor().InsertDeputy(), propositionId, deputyData.Id(),
+		err = transaction.QueryRow(queries.PropositionAuthor().Insert().Deputy(), propositionId, deputyData.Id(),
 			deputyParty.Id()).Scan(&propositionAuthorId)
 		if err != nil {
 			log.Errorf("Erro ao cadastrar deputado(a) %s como autor(a) da proposição %d: %s", deputyData.Id(),
@@ -57,22 +58,24 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 			proposition.Code(), propositionAuthorId)
 	}
 
-	for _, organizationData := range proposition.Organizations() {
+	for _, externalAuthorData := range proposition.ExternalAuthors() {
 		var propositionAuthorId uuid.UUID
-		err = transaction.QueryRow(queries.PropositionAuthor().InsertOrganization(), propositionId,
-			organizationData.Id()).Scan(&propositionAuthorId)
+		err = transaction.QueryRow(queries.PropositionAuthor().Insert().ExternalAuthor(), propositionId,
+			externalAuthorData.Id()).Scan(&propositionAuthorId)
 		if err != nil {
-			log.Errorf("Erro ao cadastrar organização %s como autora da proposição %d: %s", organizationData.Id(),
+			log.Errorf("Erro ao cadastrar autor externo %s como autor da proposição %d: %s", externalAuthorData.Id(),
 				proposition.Code(), err.Error())
 			continue
 		}
 
-		log.Infof("Organização %s cadastrada como autora da proposição %d com o ID %s", organizationData.Id(),
+		log.Infof("Autor externo %s cadastrado como autor da proposição %d com o ID %s", externalAuthorData.Id(),
 			proposition.Code(), propositionAuthorId)
 	}
 
-	var newsId uuid.UUID
-	err = transaction.QueryRow(queries.News().InsertProposition(), propositionId).Scan(&newsId)
+	var articleId uuid.UUID
+	propositionArticle := proposition.Article()
+	articleType := propositionArticle.Type()
+	err = transaction.QueryRow(queries.Article().Insert().Proposition(), propositionId, articleType.Id()).Scan(&articleId)
 	if err != nil {
 		log.Errorf("Erro ao cadastrar a proposição %d como matéria: %s", proposition.Code(), err.Error())
 		return err
@@ -80,13 +83,13 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 
 	err = transaction.Commit()
 	if err != nil {
-		log.Error("Erro ao confirmar transação para o cadastro da proposição %d: %s", proposition.Code(),
+		log.Errorf("Erro ao confirmar transação para o cadastro da proposição %d: %s", proposition.Code(),
 			err.Error())
 		return err
 	}
 
 	log.Infof("Proposição %d registrada com sucesso com o ID %s (ID da Matéria: %s)",
-		proposition.Code(), propositionId, newsId)
+		proposition.Code(), propositionId, articleId)
 	return nil
 }
 
@@ -95,7 +98,7 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 	if err != nil {
 		return nil, err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	var propositions []dto.Proposition
 	err = postgresConnection.Select(&propositions, queries.Proposition().Select().ByDate(), date)
@@ -113,12 +116,11 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 			Title(propositionDetails.Title).
 			Content(propositionDetails.Content).
 			SubmittedAt(propositionDetails.SubmittedAt).
-			Active(propositionDetails.Active).
 			CreatedAt(propositionDetails.CreatedAt).
 			UpdatedAt(propositionDetails.UpdatedAt).
 			Build()
 		if err != nil {
-			log.Errorf("Erro durante a construção da estrutura de dados da proposição %s: %s", propositionDetails,
+			log.Errorf("Erro ao validar os dados da proposição %s: %s", propositionDetails,
 				err.Error())
 			return nil, err
 		}
@@ -129,12 +131,52 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 	return propositionData, nil
 }
 
+func (instance Proposition) GetPropositionsByNewsletterId(newsletterId uuid.UUID) ([]proposition.Proposition, error) {
+	postgresConnection, err := instance.connectionManager.createConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer instance.connectionManager.closeConnection(postgresConnection)
+
+	var newsletterPropositions []dto.Proposition
+	err = postgresConnection.Select(&newsletterPropositions, queries.NewsletterProposition().Select().ByNewsletterId(),
+		newsletterId)
+	if err != nil {
+		log.Errorf("Erro ao obter os dados das proposições do boletim %s no banco de dados: %s",
+			newsletterId, err.Error())
+		return nil, err
+	}
+
+	var propositions []proposition.Proposition
+	for _, propositionData := range newsletterPropositions {
+		propositionDomain, err := proposition.NewBuilder().
+			Id(propositionData.Id).
+			Code(propositionData.Code).
+			OriginalTextUrl(propositionData.OriginalTextUrl).
+			Title(propositionData.Title).
+			Content(propositionData.Content).
+			SubmittedAt(propositionData.SubmittedAt).
+			CreatedAt(propositionData.CreatedAt).
+			UpdatedAt(propositionData.UpdatedAt).
+			Build()
+		if err != nil {
+			log.Errorf("Erro ao validar os dados da proposição %s do boletim %s: %s",
+				propositionData.Id, newsletterId, err.Error())
+			continue
+		}
+
+		propositions = append(propositions, *propositionDomain)
+	}
+
+	return propositions, nil
+}
+
 func (instance Proposition) GetLatestPropositionCodes() ([]int, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
 		return nil, err
 	}
-	defer instance.connectionManager.endConnection(postgresConnection)
+	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	var propositionCodes []int
 	err = postgresConnection.Select(&propositionCodes, queries.Proposition().Select().LatestPropositionsCodes())

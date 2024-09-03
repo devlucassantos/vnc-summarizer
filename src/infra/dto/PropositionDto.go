@@ -12,7 +12,6 @@ type Proposition struct {
 	Title           string    `db:"proposition_title"`
 	Content         string    `db:"proposition_content"`
 	SubmittedAt     time.Time `db:"proposition_submitted_at"`
-	Active          bool      `db:"proposition_active"`
 	CreatedAt       time.Time `db:"proposition_created_at"`
 	UpdatedAt       time.Time `db:"proposition_updated_at"`
 }

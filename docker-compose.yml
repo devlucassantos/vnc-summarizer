@@ -1,16 +1,12 @@
-version: '3'
-
 services:
-  vnc_write_api:
-    image: golang:alpine
-    container_name: vnc_write_api
+  vnc-summarizer:
+    image: golang:1.23
+    container_name: vnc_summarizer
     restart: always
     working_dir: /app
     volumes:
       - ./src:/app
     command: sh -c "go build -o main main.go && ./main"
-    ports:
-      - "8083:8080"
     networks:
       - vnc_network
 

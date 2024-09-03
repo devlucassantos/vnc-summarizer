@@ -3,42 +3,49 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/devlucassantos/vnc-domains/src/domains/article"
 	"github.com/devlucassantos/vnc-domains/src/domains/deputy"
+	"github.com/devlucassantos/vnc-domains/src/domains/external"
 	"github.com/devlucassantos/vnc-domains/src/domains/newsletter"
-	"github.com/devlucassantos/vnc-domains/src/domains/organization"
 	"github.com/devlucassantos/vnc-domains/src/domains/party"
 	"github.com/devlucassantos/vnc-domains/src/domains/proposition"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
 	"github.com/unidoc/unipdf/v3/extractor"
 	"github.com/unidoc/unipdf/v3/model"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"io"
 	"math"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
-	"vnc-write-api/core/interfaces/repositories"
+	"vnc-summarizer/core/interfaces/repositories"
+	"vnc-summarizer/core/services/utils"
 )
 
 type BackgroundData struct {
-	deputyRepository       repositories.Deputy
-	organizationRepository repositories.Organization
-	partyRepository        repositories.Party
-	propositionRepository  repositories.Proposition
-	newsletterRepository   repositories.Newsletter
+	deputyRepository         repositories.Deputy
+	externalAuthorRepository repositories.ExternalAuthor
+	partyRepository          repositories.Party
+	propositionRepository    repositories.Proposition
+	newsletterRepository     repositories.Newsletter
+	articleTypeRepository    repositories.ArticleType
 }
 
-func NewBackgroundDataService(deputyRepository repositories.Deputy, organizationRepository repositories.Organization,
+func NewBackgroundDataService(deputyRepository repositories.Deputy, externalAuthorRepository repositories.ExternalAuthor,
 	partyRepository repositories.Party, propositionRepository repositories.Proposition,
-	newsletterRepository repositories.Newsletter) *BackgroundData {
+	newsletterRepository repositories.Newsletter, articleTypeRepository repositories.ArticleType) *BackgroundData {
 	return &BackgroundData{
-		deputyRepository:       deputyRepository,
-		organizationRepository: organizationRepository,
-		partyRepository:        partyRepository,
-		propositionRepository:  propositionRepository,
-		newsletterRepository:   newsletterRepository,
+		deputyRepository:         deputyRepository,
+		externalAuthorRepository: externalAuthorRepository,
+		partyRepository:          partyRepository,
+		propositionRepository:    propositionRepository,
+		newsletterRepository:     newsletterRepository,
+		articleTypeRepository:    articleTypeRepository,
 	}
 }
 
@@ -102,6 +109,7 @@ func (instance BackgroundData) RegisterNewPropositions() {
 					err.Error())
 				continue
 			}
+
 			registeredDeputy, err := instance.deputyRepository.GetDeputyByCode(updatedDeputy.Code())
 			if err != nil {
 				continue
@@ -110,7 +118,7 @@ func (instance BackgroundData) RegisterNewPropositions() {
 			var deputyId *uuid.UUID
 			if registeredDeputy == nil {
 				deputyId, err = instance.deputyRepository.CreateDeputy(*updatedDeputy)
-			} else if !registeredParty.IsEqual(deputyParty) {
+			} else if !registeredDeputy.IsEqual(*updatedDeputy) {
 				err = instance.deputyRepository.UpdateDeputy(*updatedDeputy)
 			}
 			if err != nil {
@@ -130,41 +138,40 @@ func (instance BackgroundData) RegisterNewPropositions() {
 			deputies = append(deputies, *updatedDeputy)
 		}
 
-		var organizations []organization.Organization
-		for _, organizationData := range propositionData.Organizations() {
-			registeredOrganization, err := instance.organizationRepository.GetOrganization(organizationData)
+		var externalAuthors []external.ExternalAuthor
+		for _, externalAuthorData := range propositionData.ExternalAuthors() {
+			registeredExternalAuthor, err := instance.externalAuthorRepository.GetExternalAuthorByNameAndType(
+				externalAuthorData.Name(), externalAuthorData.Type())
 			if err != nil {
 				continue
 			}
 
-			var organizationId *uuid.UUID
-			if registeredOrganization == nil {
-				organizationId, err = instance.organizationRepository.CreateOrganization(organizationData)
-			} else if !registeredOrganization.IsEqual(organizationData) {
-				err = instance.organizationRepository.UpdateOrganization(organizationData)
+			var externalAuthorId *uuid.UUID
+			if registeredExternalAuthor == nil {
+				externalAuthorId, err = instance.externalAuthorRepository.CreateExternalAuthor(externalAuthorData)
 			}
 			if err != nil {
 				continue
 			}
 
-			var updatedOrganization *organization.Organization
-			if organizationId == nil {
-				updatedOrganization, err = organizationData.NewUpdater().Id(registeredOrganization.Id()).Build()
-			} else {
-				updatedOrganization, err = organizationData.NewUpdater().Id(*organizationId).Build()
-			}
-			if err != nil {
-				log.Errorf("Erro ao atualizar organização %d: %s", organizationData.Code(), err.Error())
+			if externalAuthorId == nil {
+				externalAuthors = append(externalAuthors, *registeredExternalAuthor)
 				continue
 			}
 
-			organizations = append(organizations, *updatedOrganization)
+			updatedExternalAuthor, err := externalAuthorData.NewUpdater().Id(*externalAuthorId).Build()
+			if err != nil {
+				log.Errorf("Erro ao atualizar autor externo %s: %s", externalAuthorData.Name(), err.Error())
+				continue
+			}
+
+			externalAuthors = append(externalAuthors, *updatedExternalAuthor)
 		}
 
 		var updatedProposition *proposition.Proposition
 		updatedProposition, err = propositionData.NewUpdater().
 			Deputies(deputies).
-			Organizations(organizations).
+			ExternalAuthors(externalAuthors).
 			Build()
 		if err != nil {
 			log.Errorf("Erro ao atualizar proposição %d: %s", propositionData.Code(), err.Error())
@@ -203,6 +210,8 @@ func getLatestPropositionsRegisteredAtCamara() ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	sort.Ints(propositionCodes)
 
 	return propositionCodes, nil
 }
@@ -328,27 +337,43 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
+	deputies, externalAuthors, err := getAuthorsOfTheProposition(fmt.Sprint(propositionData["uriAutores"]))
+	if err != nil {
+		return nil, err
+	}
+
+	articleTypeCode := fmt.Sprint(propositionData["codTipo"])
+	articleType, err := instance.articleTypeRepository.GetArticleTypeByCodeOrDefaultType(articleTypeCode)
+	if err != nil {
+		return nil, err
+	}
+
+	specificType, err := getArticleTypeDescription(articleTypeCode)
+	if err != nil {
+		return nil, err
+	}
+
 	originalTextUrl := fmt.Sprint(propositionData["urlInteiroTeor"])
-	propositionText, err := getPropositionContent(originalTextUrl)
-	if err != nil {
-		return nil, err
+	var propositionContentSummary string
+	if utils.IsUrlValid(originalTextUrl) {
+		propositionText, err := getPropositionContent(originalTextUrl)
+		if err != nil {
+			return nil, err
+		}
+
+		chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo" +
+			"para uma revista. O texto produzido deve conter no máximo três parágrafos:"
+		purpose := fmt.Sprint("Síntese do conteúdo da proposição ", propositionCode)
+		propositionContentSummary, err = requestToChatGpt(chatGptCommand, propositionText, purpose)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		propositionContentSummary = fmt.Sprint(propositionData["ementa"])
 	}
 
-	chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo" +
-		"para uma revista. O texto produzido deve conter no máximo três parágrafos:"
-	purpose := fmt.Sprint("Síntese do conteúdo da proposição ", propositionCode)
-	propositionContentSummary, err := requestToChatGpt(chatGptCommand, propositionText, purpose)
-	if err != nil {
-		return nil, err
-	}
-
-	deputies, organizations, err := getAuthorsOfTheProposition(fmt.Sprint(propositionData["uriAutores"]))
-	if err != nil {
-		return nil, err
-	}
-
-	chatGptCommand = "Gere um título chamativo para a seguinte matéria para uma revista sobre uma proposição política:"
-	purpose = fmt.Sprint("Geração do título da proposição ", propositionCode)
+	chatGptCommand := "Gere um título chamativo para a seguinte matéria para uma revista sobre uma proposição política:"
+	purpose := fmt.Sprint("Geração do título da proposição ", propositionCode)
 	propositionTitle, err := requestToChatGpt(chatGptCommand, propositionContentSummary, purpose)
 	if err != nil {
 		return nil, err
@@ -360,17 +385,36 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
-	propositionDataToRegister, err := proposition.NewBuilder().
+	propositionImageUrl, err := getPropositionImage(propositionCode, propositionContentSummary)
+	if err != nil {
+		return nil, err
+	}
+
+	articleData, err := article.NewBuilder().Type(*articleType).Build()
+	if err != nil {
+		log.Errorf("Erro ao validar os dados da matéria da proposição %d: %s", propositionCode,
+			err.Error())
+		return nil, err
+	}
+
+	propositionBuilder := proposition.NewBuilder().
 		Code(propositionCode).
-		OriginalTextUrl(originalTextUrl).
 		Title(strings.Trim(propositionTitle, "\"")).
 		Content(propositionContentSummary).
 		SubmittedAt(submittedAt).
+		ImageUrl(propositionImageUrl).
+		SpecificType(specificType).
 		Deputies(deputies).
-		Organizations(organizations).
-		Build()
+		ExternalAuthors(externalAuthors).
+		Article(*articleData)
+
+	if utils.IsUrlValid(originalTextUrl) {
+		propositionBuilder.OriginalTextUrl(originalTextUrl)
+	}
+
+	propositionDataToRegister, err := propositionBuilder.Build()
 	if err != nil {
-		log.Errorf("Erro durante a construção da estrutura de dados da proposição %d: %s", propositionCode,
+		log.Errorf("Erro ao validar os dados da proposição %d: %s", propositionCode,
 			err.Error())
 		return nil, err
 	}
@@ -502,7 +546,7 @@ func closeResponseBody(response *http.Response) {
 	}
 }
 
-func getAuthorsOfTheProposition(url string) ([]deputy.Deputy, []organization.Organization, error) {
+func getAuthorsOfTheProposition(url string) ([]deputy.Deputy, []external.ExternalAuthor, error) {
 	response, err := getRequest(url)
 	if err != nil {
 		return nil, nil, err
@@ -518,27 +562,39 @@ func getAuthorsOfTheProposition(url string) ([]deputy.Deputy, []organization.Org
 		return nil, nil, err
 	}
 
-	deputies, organizations, err := convertAuthorsMapToDeputiesAndOrganizations(authors)
+	deputies, externalAuthors, err := convertAuthorsMapToDeputiesAndExternalAuthors(authors)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return deputies, organizations, nil
+	return deputies, externalAuthors, nil
 }
 
-func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{}) ([]deputy.Deputy,
-	[]organization.Organization, error) {
+func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interface{}) ([]deputy.Deputy,
+	[]external.ExternalAuthor, error) {
 	var deputies []deputy.Deputy
-	var organizations []organization.Organization
+	var externalAuthors []external.ExternalAuthor
+
+	sort.Slice(authors, func(i, j int) bool {
+		return authors[i]["ordemAssinatura"].(float64) < authors[j]["ordemAssinatura"].(float64)
+	})
 
 	for authorIndex, author := range authors {
 		log.Infof("Iniciando busca dos dados do %d° autor: %s", authorIndex+1, author["nome"])
-		authorData, err := getDataFromUrl(fmt.Sprint(author["uri"]))
-		if err != nil {
-			return nil, nil, err
+
+		authorUrl := fmt.Sprint(author["uri"])
+		var authorData map[string]interface{}
+		var err error
+		if authorUrl != "" {
+			authorData, err = getDataFromUrl(authorUrl)
 		}
 
-		if fmt.Sprint(author["tipo"]) == "Deputado" {
+		if fmt.Sprint(author["tipo"]) == "Deputado(a)" || fmt.Sprint(author["tipo"]) == "Deputado" {
+			if err != nil {
+				log.Warnf("Não foi possível obter os dados do deputado(a) %s : %s", fmt.Sprint(author["nome"]), err.Error())
+				return nil, nil, err
+			}
+
 			deputyCode, err := convertInterfaceToInt(authorData["id"])
 			if err != nil {
 				return nil, nil, err
@@ -566,7 +622,7 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 				ImageUrl(fmt.Sprint(partyMap["urlLogo"])).
 				Build()
 			if err != nil {
-				log.Errorf("Erro durante a construção da estrutura de dados do partido %d do(a) deputado(a) %d: %s",
+				log.Errorf("Erro ao validar os dados do partido %d do(a) deputado(a) %d: %s",
 					partyCode, deputyCode, err.Error())
 				return nil, nil, err
 			}
@@ -574,51 +630,95 @@ func convertAuthorsMapToDeputiesAndOrganizations(authors []map[string]interface{
 			deputyData, err := deputy.NewBuilder().
 				Code(deputyCode).
 				Cpf(fmt.Sprint(authorData["cpf"])).
-				Name(fmt.Sprint(authorData["nomeCivil"])).
+				Name(cases.Title(language.BrazilianPortuguese).String(strings.ToLower(fmt.Sprint(authorData["nomeCivil"])))).
 				ElectoralName(fmt.Sprint(authorLastStatus["nomeEleitoral"])).
 				ImageUrl(fmt.Sprint(authorLastStatus["urlFoto"])).
 				Party(*partyData).
 				Build()
 			if err != nil {
-				log.Errorf("Erro durante a construção da estrutura de dados do(a) deputado(a) %d: %s", deputyCode,
+				log.Errorf("Erro ao validar os dados do(a) deputado(a) %d: %s", deputyCode,
 					err.Error())
 				return nil, nil, err
 			}
 
 			deputies = append(deputies, *deputyData)
 		} else {
-			var organizationData *organization.Organization
-			if authorData != nil {
-				code, err := convertInterfaceToInt(authorData["id"])
-				if err != nil {
-					return nil, nil, err
-				}
-
-				organizationData, err = organization.NewBuilder().
-					Code(code).
-					Name(fmt.Sprint(authorData["nome"])).
-					Acronym(fmt.Sprint(authorData["sigla"])).
-					Nickname(fmt.Sprint(authorData["apelido"])).
-					Type(fmt.Sprint(author["tipo"])).
-					Build()
-			} else {
-				organizationData, err = organization.NewBuilder().
-					Name(fmt.Sprint(author["nome"])).
-					Type(fmt.Sprint(author["tipo"])).
-					Build()
-			}
+			caser := cases.Title(language.BrazilianPortuguese)
+			externalAuthorData, err := external.NewBuilder().
+				Name(caser.String(strings.ToLower(fmt.Sprint(author["nome"])))).
+				Type(caser.String(strings.ToLower(fmt.Sprint(author["tipo"])))).
+				Build()
 			if err != nil {
-				log.Errorf("Erro durante a construção da estrutura de dados da organização %s: %s",
-					fmt.Sprint(authorData["nome"]), err.Error())
+				log.Errorf("Erro ao validar os dados do autor externo %s: %s",
+					fmt.Sprint(author["nome"]), err.Error())
 				return nil, nil, err
 			}
 
-			organizations = append(organizations, *organizationData)
+			externalAuthors = append(externalAuthors, *externalAuthorData)
 		}
 		log.Info("Busca dos dados do autor finalizada com sucesso")
 	}
 
-	return deputies, organizations, nil
+	return deputies, externalAuthors, nil
+}
+
+func getArticleTypeDescription(articleTypeCode string) (string, error) {
+	url := "https://dadosabertos.camara.leg.br/api/v2/referencias/proposicoes/siglaTipo"
+	response, err := getRequest(url)
+	if err != nil {
+		return "", err
+	}
+
+	body, err := readResponseBody(response)
+	if err != nil {
+		return "", err
+	}
+
+	articleTypes, err := getDataFromRequestMap(body)
+	if err != nil {
+		return "", err
+	}
+
+	for _, articleType := range articleTypes {
+		if fmt.Sprint(articleType["cod"]) == articleTypeCode {
+			return fmt.Sprintf("%s (%s)", articleType["nome"], articleType["cod"]), nil
+		}
+	}
+
+	return "", nil
+}
+
+func getPropositionImage(propositionCode int, propositionContent string) (string, error) {
+	prompt, err := requestToChatGpt("Gere um prompt para o DALL·E gerar uma imagem para um site jornalistico "+
+		"sobre a seguinte proposição política, é importante que o prompt esteja de acordo com as políticas do DALL·E: ",
+		propositionContent,
+		fmt.Sprint("Geração do prompt da imagem da proposição ", propositionCode))
+	if err != nil {
+		return "", err
+	}
+
+	purpose := fmt.Sprint("Geração da imagem da proposição ", propositionCode)
+	dallEImageUrl, err := requestToDallE(prompt, purpose)
+	if err != nil {
+		return "", err
+	}
+
+	response, err := getRequest(dallEImageUrl)
+	if err != nil {
+		return "", err
+	}
+
+	image, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Fatal("Erro ao ler a imagem da proposição %d: %s", propositionCode, err)
+	}
+
+	imageUrl, err := savePropositionImageInAwsS3(propositionCode, image)
+	if err != nil {
+		return "", err
+	}
+
+	return imageUrl, nil
 }
 
 func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
@@ -638,9 +738,14 @@ func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 	if err != nil {
 		return
 	} else if registeredNewsletter != nil {
+		newsletterPropositions, err := instance.propositionRepository.GetPropositionsByNewsletterId(registeredNewsletter.Id())
+		if err != nil {
+			return
+		}
+
 		for _, propositionData := range propositions {
 			var isInTheNewsletter bool
-			for _, newsletterPropositionData := range registeredNewsletter.Propositions() {
+			for _, newsletterPropositionData := range newsletterPropositions {
 				if newsletterPropositionData.Id() == propositionData.Id() {
 					isInTheNewsletter = true
 					break
@@ -668,14 +773,14 @@ func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 			formattedReferenceDate)
 	}
 
-	newsletterData, err := generateNewsletter(propositions, referenceDate)
+	newsletterData, err := instance.generateNewsletter(propositions, referenceDate)
 	if err != nil {
 		for attempt := 1; attempt <= 3; attempt++ {
 			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
 			log.Warnf("Não foi possível criar o boletim do dia %s na %dª tentativa, tentando novamente em %d "+
 				"segundos", formattedReferenceDate, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
-			newsletterData, err = generateNewsletter(propositions, referenceDate)
+			newsletterData, err = instance.generateNewsletter(propositions, referenceDate)
 			if err == nil {
 				break
 			}
@@ -699,7 +804,7 @@ func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 	}
 
 	if registeredNewsletter == nil {
-		err = instance.newsletterRepository.CreateNewsletter(*newsletterData)
+		err = instance.newsletterRepository.CreateNewsletter(*newsletterData, propositions)
 		if err != nil {
 			log.Error("Erro ao registrar o boletim do dia ", formattedReferenceDate)
 		}
@@ -713,7 +818,7 @@ func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 	return
 }
 
-func generateNewsletter(propositions []proposition.Proposition, referenceDate time.Time) (*newsletter.Newsletter, error) {
+func (instance BackgroundData) generateNewsletter(propositions []proposition.Proposition, referenceDate time.Time) (*newsletter.Newsletter, error) {
 	formattedReferenceDate := referenceDate.Format("02/01/2006")
 
 	var contentOfPropositions string
@@ -722,30 +827,35 @@ func generateNewsletter(propositions []proposition.Proposition, referenceDate ti
 			propositionData.Title(), propositionData.Content())
 	}
 
-	chatGptCommand := "Crie um boletim de notícias em formato de texto corrido a partir das seguintes matérias sobre " +
-		"algumas proposições políticas:"
-	purpose := fmt.Sprint("Geração do boletim do dia ", formattedReferenceDate)
-	newsletterContent, err := requestToChatGpt(chatGptCommand, contentOfPropositions, purpose)
+	chatGptCommand := "Gere uma descrição para ser usada no boletim abaixo sobre o conjunto de proposições  políticas " +
+		"abaixo. É importante que a descrição seja curta e chamativa, falando sobre o máximo de proposições possíveis e " +
+		"correlacionando os temas. Não deve ter mais do que 500 caracteres. Proposições:"
+	purpose := fmt.Sprint("Geração da descrição do boletim do dia ", formattedReferenceDate)
+	newsletterDescription, err := requestToChatGpt(chatGptCommand, contentOfPropositions, purpose)
 	if err != nil {
 		return nil, err
 	}
 
-	chatGptCommand = "Gere um único título chamativo para a seguinte matéria para uma revista sobre um conjunto de " +
-		"proposições políticas:"
-	purpose = fmt.Sprint("Geração do título do boletim do dia ", formattedReferenceDate)
-	newsletterTitle, err := requestToChatGpt(chatGptCommand, newsletterContent, purpose)
+	articleType, err := instance.articleTypeRepository.GetArticleTypeByCodeOrDefaultType("newsletter")
 	if err != nil {
+		return nil, err
+	}
+
+	articleData, err := article.NewBuilder().Type(*articleType).Build()
+	if err != nil {
+		log.Errorf("Erro ao validar os dados da matéria do boletim do dia %d: %s", formattedReferenceDate,
+			err.Error())
 		return nil, err
 	}
 
 	newsletterData, err := newsletter.NewBuilder().
-		Title(strings.Trim(newsletterTitle, "\"")).
-		Content(newsletterContent).
 		ReferenceDate(referenceDate).
-		Propositions(propositions).
+		Title(fmt.Sprint("Boletim do dia ", formattedReferenceDate)).
+		Description(newsletterDescription).
+		Article(*articleData).
 		Build()
 	if err != nil {
-		log.Errorf("Erro durante a construção da estrutura de dados do boletim do dia %s: %s",
+		log.Errorf("Erro ao validar os dados do boletim do dia %s: %s",
 			formattedReferenceDate, err.Error())
 		return nil, err
 	}
