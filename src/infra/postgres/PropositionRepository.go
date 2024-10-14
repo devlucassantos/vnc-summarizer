@@ -22,24 +22,30 @@ func NewPropositionRepository(connectionManager connectionManagerInterface) *Pro
 func (instance Proposition) CreateProposition(proposition proposition.Proposition) error {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
 
 	transaction, err := postgresConnection.Beginx()
 	if err != nil {
-		log.Errorf("Erro ao iniciar transação para o cadastro da proposição %d: %s", proposition.Code(),
-			err.Error())
+		log.Errorf("Error starting transaction to register the proposition %d: %s", proposition.Code(), err.Error())
 		return err
 	}
 	defer instance.connectionManager.rollbackTransaction(transaction)
 
+	var propositionImageUrl *string
+	if proposition.ImageUrl() != "" {
+		imageUrl := proposition.ImageUrl()
+		propositionImageUrl = &imageUrl
+	}
+
 	var propositionId uuid.UUID
 	err = transaction.QueryRow(queries.Proposition().Insert(), proposition.Code(), proposition.OriginalTextUrl(),
-		proposition.Title(), proposition.Content(), proposition.SubmittedAt(), proposition.ImageUrl(),
+		proposition.Title(), proposition.Content(), proposition.SubmittedAt(), propositionImageUrl,
 		proposition.SpecificType()).Scan(&propositionId)
 	if err != nil {
-		log.Errorf("Erro ao cadastrar a proposição %d: %s", proposition.Code(), err.Error())
+		log.Errorf("Error registering the proposition %d: %s", proposition.Code(), err.Error())
 		return err
 	}
 
@@ -49,12 +55,12 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 		err = transaction.QueryRow(queries.PropositionAuthor().Insert().Deputy(), propositionId, deputyData.Id(),
 			deputyParty.Id()).Scan(&propositionAuthorId)
 		if err != nil {
-			log.Errorf("Erro ao cadastrar deputado(a) %s como autor(a) da proposição %d: %s", deputyData.Id(),
+			log.Errorf("Error registering deputy %s as the author of the proposition %d: %s", deputyData.Id(),
 				proposition.Code(), err.Error())
 			continue
 		}
 
-		log.Infof("Deputado(a) %s cadastrado(a) como autor(a) da proposição %d com o ID %s", deputyData.Id(),
+		log.Infof("Deputy %s registered as author of the proposition %d with ID %s", deputyData.Id(),
 			proposition.Code(), propositionAuthorId)
 	}
 
@@ -63,13 +69,13 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 		err = transaction.QueryRow(queries.PropositionAuthor().Insert().ExternalAuthor(), propositionId,
 			externalAuthorData.Id()).Scan(&propositionAuthorId)
 		if err != nil {
-			log.Errorf("Erro ao cadastrar autor externo %s como autor da proposição %d: %s", externalAuthorData.Id(),
-				proposition.Code(), err.Error())
+			log.Errorf("Error registering external author %s as the author of the proposition %d: %s",
+				externalAuthorData.Id(), proposition.Code(), err.Error())
 			continue
 		}
 
-		log.Infof("Autor externo %s cadastrado como autor da proposição %d com o ID %s", externalAuthorData.Id(),
-			proposition.Code(), propositionAuthorId)
+		log.Infof("External author %s registered as author of the proposition %d with ID %s",
+			externalAuthorData.Id(), proposition.Code(), propositionAuthorId)
 	}
 
 	var articleId uuid.UUID
@@ -77,25 +83,26 @@ func (instance Proposition) CreateProposition(proposition proposition.Propositio
 	articleType := propositionArticle.Type()
 	err = transaction.QueryRow(queries.Article().Insert().Proposition(), propositionId, articleType.Id()).Scan(&articleId)
 	if err != nil {
-		log.Errorf("Erro ao cadastrar a proposição %d como matéria: %s", proposition.Code(), err.Error())
+		log.Errorf("Error registering proposition %d as article:  %s", proposition.Code(), err.Error())
 		return err
 	}
 
 	err = transaction.Commit()
 	if err != nil {
-		log.Errorf("Erro ao confirmar transação para o cadastro da proposição %d: %s", proposition.Code(),
+		log.Errorf("Error confirming transaction to register proposition %d: %s", proposition.Code(),
 			err.Error())
 		return err
 	}
 
-	log.Infof("Proposição %d registrada com sucesso com o ID %s (ID da Matéria: %s)",
-		proposition.Code(), propositionId, articleId)
+	log.Infof("Proposition %d successfully registered with ID %s (Article ID: %s)", proposition.Code(),
+		propositionId, articleId)
 	return nil
 }
 
 func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition.Proposition, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -103,7 +110,7 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 	var propositions []dto.Proposition
 	err = postgresConnection.Select(&propositions, queries.Proposition().Select().ByDate(), date)
 	if err != nil {
-		log.Error("Erro ao obter os dados das proposições por data no banco de dados: ", err.Error())
+		log.Error("Error retrieving the proposition data by date from the database: ", err.Error())
 		return nil, err
 	}
 
@@ -120,8 +127,7 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 			UpdatedAt(propositionDetails.UpdatedAt).
 			Build()
 		if err != nil {
-			log.Errorf("Erro ao validar os dados da proposição %s: %s", propositionDetails,
-				err.Error())
+			log.Errorf("Error validating data for proposition %s: %s", propositionDetails.Id, err.Error())
 			return nil, err
 		}
 
@@ -134,6 +140,7 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 func (instance Proposition) GetPropositionsByNewsletterId(newsletterId uuid.UUID) ([]proposition.Proposition, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -142,7 +149,7 @@ func (instance Proposition) GetPropositionsByNewsletterId(newsletterId uuid.UUID
 	err = postgresConnection.Select(&newsletterPropositions, queries.NewsletterProposition().Select().ByNewsletterId(),
 		newsletterId)
 	if err != nil {
-		log.Errorf("Erro ao obter os dados das proposições do boletim %s no banco de dados: %s",
+		log.Errorf("Error retrieving the proposition data from newsletter %s from the database: %s",
 			newsletterId, err.Error())
 		return nil, err
 	}
@@ -160,8 +167,8 @@ func (instance Proposition) GetPropositionsByNewsletterId(newsletterId uuid.UUID
 			UpdatedAt(propositionData.UpdatedAt).
 			Build()
 		if err != nil {
-			log.Errorf("Erro ao validar os dados da proposição %s do boletim %s: %s",
-				propositionData.Id, newsletterId, err.Error())
+			log.Errorf("Error validating data for proposition %s of newsletter %s: %s", propositionData.Id,
+				newsletterId, err.Error())
 			continue
 		}
 
@@ -174,6 +181,7 @@ func (instance Proposition) GetPropositionsByNewsletterId(newsletterId uuid.UUID
 func (instance Proposition) GetLatestPropositionCodes() ([]int, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -181,7 +189,7 @@ func (instance Proposition) GetLatestPropositionCodes() ([]int, error) {
 	var propositionCodes []int
 	err = postgresConnection.Select(&propositionCodes, queries.Proposition().Select().LatestPropositionsCodes())
 	if err != nil {
-		log.Error("Erro ao obter os últimos códigos das proposições inseridas no banco de dados: ", err.Error())
+		log.Error("Error obtaining the codes of the last propositions inserted into the database: ", err.Error())
 		return nil, err
 	}
 

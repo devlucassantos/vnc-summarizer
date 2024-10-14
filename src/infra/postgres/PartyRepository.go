@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/devlucassantos/vnc-domains/src/domains/party"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
@@ -22,6 +23,7 @@ func NewPartyRepository(connectionManager connectionManagerInterface) *Party {
 func (instance Party) CreateParty(party party.Party) (*uuid.UUID, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -30,17 +32,18 @@ func (instance Party) CreateParty(party party.Party) (*uuid.UUID, error) {
 	err = postgresConnection.QueryRow(queries.Party().Insert(), party.Code(), party.Name(), party.Acronym(),
 		party.ImageUrl()).Scan(&partyId)
 	if err != nil {
-		log.Errorf("Erro ao cadastrar o partido %d: %s", party.Code(), err.Error())
+		log.Errorf("Error registering party %d: %s", party.Code(), err.Error())
 		return nil, err
 	}
 
-	log.Infof("Partido %d registrada com sucesso com o ID %s", party.Code(), partyId)
+	log.Infof("Party %d successfully registered with ID %s", party.Code(), partyId)
 	return &partyId, nil
 }
 
 func (instance Party) UpdateParty(party party.Party) error {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -48,17 +51,18 @@ func (instance Party) UpdateParty(party party.Party) error {
 	_, err = postgresConnection.Exec(queries.Party().Update(), party.Name(), party.Acronym(), party.ImageUrl(),
 		party.Code())
 	if err != nil {
-		log.Errorf("Erro ao atualizar o partido %d: %s", party.Code(), err.Error())
+		log.Errorf("Error updating party %d: %s", party.Code(), err.Error())
 		return err
 	}
 
-	log.Infof("Dados do partido %d atualizados com sucesso", party.Code())
+	log.Infof("Party %d successfully updated", party.Code())
 	return nil
 }
 
 func (instance Party) GetPartyByCode(code int) (*party.Party, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -66,11 +70,11 @@ func (instance Party) GetPartyByCode(code int) (*party.Party, error) {
 	var partyData dto.Party
 	err = postgresConnection.Get(&partyData, queries.Party().Select().ByCode(), code)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			log.Infof("Partido %d não encontrado no banco de dados", code)
+		if errors.Is(err, sql.ErrNoRows) {
+			log.Infof("Party %d not found in database", code)
 			return nil, nil
 		}
-		log.Errorf("Erro ao obter os dados do partido %s no banco de dados: %s", code, err.Error())
+		log.Errorf("Error retrieving data for party %d from the database: %s", code, err.Error())
 		return nil, err
 	}
 
@@ -84,7 +88,7 @@ func (instance Party) GetPartyByCode(code int) (*party.Party, error) {
 		UpdatedAt(partyData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro ao validar os dados do partido %s: %s", partyData.Id, err.Error())
+		log.Errorf("Error validating data for party %s: %s", partyData.Id, err.Error())
 		return nil, err
 	}
 

@@ -3,8 +3,6 @@ package main
 import (
 	"github.com/joho/godotenv"
 	"github.com/labstack/gommon/log"
-	"github.com/unidoc/unipdf/v3/common/license"
-	"os"
 	"time"
 	"vnc-summarizer/config/diconteiner"
 )
@@ -12,13 +10,7 @@ import (
 func main() {
 	err := godotenv.Load("config/.env")
 	if err != nil {
-		log.Fatal("Arquivo de variáveis de ambiente não encontrado: ", err)
-	}
-
-	err = license.SetMeteredKey(os.Getenv("UNICLOUD_KEY"))
-	if err != nil {
-		log.Error("Erro ao validar chave para manipulação de PDF: ", err.Error())
-		return
+		log.Fatal("Environment variables file not found: ", err.Error())
 	}
 
 	backgroundDataService := diconteiner.GetBackgroundDataService()
