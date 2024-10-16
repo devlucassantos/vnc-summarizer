@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/devlucassantos/vnc-domains/src/domains/deputy"
 	"github.com/devlucassantos/vnc-domains/src/domains/party"
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ func NewDeputyRepository(connectionManager connectionManagerInterface) *Deputy {
 func (instance Deputy) CreateDeputy(deputy deputy.Deputy) (*uuid.UUID, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -32,17 +34,18 @@ func (instance Deputy) CreateDeputy(deputy deputy.Deputy) (*uuid.UUID, error) {
 	err = postgresConnection.QueryRow(queries.Deputy().Insert(), deputy.Code(), deputy.Cpf(), deputy.Name(),
 		deputy.ElectoralName(), deputy.ImageUrl(), deputyParty.Id()).Scan(&deputyId)
 	if err != nil {
-		log.Errorf("Erro ao cadastrar o(a) deputado(a) %d: %s", deputy.Code(), err.Error())
+		log.Errorf("Error registering deputy %d: %s", deputy.Code(), err.Error())
 		return nil, err
 	}
 
-	log.Infof("Deputado(a) %d registrado(a) com sucesso com o ID %s", deputy.Code(), deputyId)
+	log.Infof("Deputy %d successfully registered with ID %s", deputy.Code(), deputyId)
 	return &deputyId, nil
 }
 
 func (instance Deputy) UpdateDeputy(deputy deputy.Deputy) error {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -51,17 +54,18 @@ func (instance Deputy) UpdateDeputy(deputy deputy.Deputy) error {
 	_, err = postgresConnection.Exec(queries.Deputy().Update(), deputy.Name(), deputy.ElectoralName(),
 		deputy.ImageUrl(), deputyParty.Id(), deputy.Code())
 	if err != nil {
-		log.Errorf("Erro ao atualizar o(a) deputado(a) %d: %s", deputy.Code(), err.Error())
+		log.Errorf("Error updating deputy %d: %s", deputy.Code(), err.Error())
 		return err
 	}
 
-	log.Infof("Dados do(a) deputado(a) %d atualizados com sucesso", deputy.Code())
+	log.Infof("Deputy %d successfully updated", deputy.Code())
 	return nil
 }
 
 func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
+		log.Error("connectionManager.createConnection(): ", err.Error())
 		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
@@ -69,11 +73,11 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 	var deputyData dto.Deputy
 	err = postgresConnection.Get(&deputyData, queries.Deputy().Select().ByCode(), code)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			log.Infof("Deputado(a) %d não encontrado(a) no banco de dados", code)
+		if errors.Is(err, sql.ErrNoRows) {
+			log.Infof("Deputy %d not found in database", code)
 			return nil, nil
 		}
-		log.Errorf("Erro ao obter os dados do(a) deputado(a) %d no banco de dados: %s", code, err.Error())
+		log.Errorf("Error retrieving data for deputy %d from the database: %s", code, err.Error())
 		return nil, err
 	}
 
@@ -87,8 +91,8 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		UpdatedAt(deputyData.Party.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro ao validar os dados do partido %s do(a) deputado(a) %s: %s",
-			deputyData.Party.Id, deputyData.Id, err.Error())
+		log.Errorf("Error validating data for party %s of deputy %s: %s", deputyData.Party.Id, deputyData.Id,
+			err.Error())
 		return nil, err
 	}
 
@@ -104,8 +108,7 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		UpdatedAt(deputyData.UpdatedAt).
 		Build()
 	if err != nil {
-		log.Errorf("Erro ao validar os dados do(a) deputado(a) %s: %s", deputyData.Id,
-			err.Error())
+		log.Errorf("Error validating data for deputy %s: %s", deputyData.Id, err.Error())
 		return nil, err
 	}
 

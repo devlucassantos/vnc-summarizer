@@ -14,6 +14,8 @@ import (
 )
 
 func savePropositionImageInAwsS3(propositionCode int, image []byte) (string, error) {
+	log.Info("Starting to register the image of proposition ", propositionCode)
+
 	awsRegion := os.Getenv("AWS_REGION")
 	awsAccessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
 	awsAccessSecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -38,11 +40,12 @@ func savePropositionImageInAwsS3(propositionCode int, image []byte) (string, err
 
 	_, err := s3Client.PutObject(context.TODO(), &uploader)
 	if err != nil {
-		log.Error("Erro ao enviar a imagem para o AWS S3: ", err)
+		log.Errorf("Error saving image of proposition %d to AWS S3: %s", propositionCode, err.Error())
 		return "", err
 	}
 
 	imageUrl := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", bucket, key)
 
+	log.Infof("The image of proposition %d was successfully registered: %s", propositionCode, imageUrl)
 	return imageUrl, nil
 }

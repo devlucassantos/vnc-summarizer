@@ -8,6 +8,8 @@ import (
 	"github.com/labstack/gommon/log"
 	"net/http"
 	"os"
+	"vnc-summarizer/core/services/utils/converters"
+	"vnc-summarizer/core/services/utils/requests"
 )
 
 type DallERequest struct {
@@ -24,38 +26,39 @@ type DallEResponse struct {
 }
 
 func requestToDallE(prompt, purpose string) (string, error) {
-	log.Info("Iniciando comunicação com DALL·E: ", purpose)
+	log.Info("Starting communication with DALL·E: ", purpose)
 
-	requestBody, err := json.Marshal(DallERequest{
+	body := DallERequest{
 		Model:          os.Getenv("OPENAI_DALLE_API_MODEL"),
 		NumberOfImages: 1,
 		Size:           "1024x1024",
 		Prompt:         prompt,
-	})
+	}
+	requestBody, err := converters.ToJson(body)
 	if err != nil {
-		log.Error("Erro ao construir a requisição para comunicação com o DALL·E: ", err)
-		return "", nil
+		log.Error("converters.ToJson(): ", err.Error())
+		return "", err
 	}
 
-	client := &http.Client{}
 	request, err := http.NewRequest("POST", "https://api.openai.com/v1/images/generations",
 		bytes.NewBuffer(requestBody))
 	if err != nil {
-		log.Error("Erro ao criar a requisição para o DALL·E: ", err)
+		log.Error("Error building the request for communication with DALL·E: ", err.Error())
 		return "", nil
 	}
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
 	request.Header.Set("Content-Type", "application/json")
 
+	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		log.Error("Erro ao realizar requisição para o DALL·E: ", err)
+		log.Error("Error making request to DALL·E: ", err.Error())
 		return "", nil
 	}
-	defer closeResponseBody(response)
+	defer requests.CloseResponseBody(request, response)
 
 	if response.StatusCode != http.StatusOK {
-		errorMessage := fmt.Sprintf("Erro a realizar requisição para o DALL·E: (Status code: %s)", response.Status)
+		errorMessage := fmt.Sprintf("Error making request to DALL·E: [Status code: %s]", response.Status)
 		log.Error(errorMessage)
 		return "", errors.New(errorMessage)
 	}
@@ -63,17 +66,17 @@ func requestToDallE(prompt, purpose string) (string, error) {
 	var dallEResponse DallEResponse
 	err = json.NewDecoder(response.Body).Decode(&dallEResponse)
 	if err != nil {
-		log.Error("Erro ao ler o corpo da resposta retornada pelo DALL·E: ", err)
+		log.Error("Error reading the response body returned by DALL·E: ", err.Error())
 		return "", err
 	}
 
 	if len(dallEResponse.Data) < 1 {
-		errorMessage := "não foi possível obter o resultado da solicitação ao DALL·E"
+		errorMessage := "could not get the result of the request to DALL·E"
 		log.Error(errorMessage)
 		return "", errors.New(errorMessage)
 	}
 
-	log.Info("Comunicação realizada com sucesso para o DALL·E: ", purpose)
+	log.Info("Successful communication with DALL·E: ", purpose)
 
 	return dallEResponse.Data[0].Url, nil
 }

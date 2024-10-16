@@ -13,7 +13,7 @@ func (articleTypeSqlManager) Select() *articleTypeSelectSqlManager {
 }
 
 func (articleTypeSelectSqlManager) ByCode() string {
-	return `SELECT id AS article_type_id, description AS article_type_description,
+	return `SELECT id AS article_type_id, description AS article_type_description, codes AS article_type_codes,
        			color AS article_type_color, sort_order AS article_type_sort_order,
        			created_at AS article_type_created_at, updated_at AS article_type_updated_at
 			FROM article_type
@@ -21,7 +21,7 @@ func (articleTypeSelectSqlManager) ByCode() string {
 }
 
 func (articleTypeSelectSqlManager) DefaultOption() string {
-	return `SELECT id AS article_type_id, description AS article_type_description,
+	return `SELECT id AS article_type_id, description AS article_type_description, codes AS article_type_codes,
        			color AS article_type_color, sort_order AS article_type_sort_order,
        			created_at AS article_type_created_at, updated_at AS article_type_updated_at
 			FROM article_type

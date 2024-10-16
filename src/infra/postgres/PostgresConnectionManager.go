@@ -24,7 +24,7 @@ func NewPostgresConnectionManager() *ConnectionManager {
 func (ConnectionManager) createConnection() (*sqlx.DB, error) {
 	db, err := sqlx.Open("postgres", getPostgresConnectionUri())
 	if err != nil {
-		log.Error("Erro ao criar conexão com o banco de dados Postgres: ", err.Error())
+		log.Error("Error creating a connection to the Postgres database: ", err.Error())
 		return nil, err
 	}
 	db.SetConnMaxLifetime(time.Minute)
@@ -37,14 +37,14 @@ func (ConnectionManager) createConnection() (*sqlx.DB, error) {
 func (ConnectionManager) closeConnection(connection *sqlx.DB) {
 	err := connection.Close()
 	if err != nil {
-		log.Error("Erro ao encerrar conexão com o banco de dados Postgres: ", err.Error())
+		log.Error("Error closing the connection to the Postgres database: ", err.Error())
 	}
 }
 
 func (ConnectionManager) rollbackTransaction(transaction *sqlx.Tx) {
 	err := transaction.Rollback()
 	if err != nil {
-		log.Warn("Erro ao cancelar transação no banco de dados Postgres: ", err.Error())
+		log.Warn("Error canceling the transaction in the Postgres database: ", err.Error())
 	}
 }
 
@@ -55,6 +55,7 @@ func getPostgresConnectionUri() string {
 	password := os.Getenv("POSTGRESQL_PASSWORD")
 	databaseName := os.Getenv("POSTGRESQL_DB")
 
-	connectionData := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, databaseName)
+	connectionData := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, databaseName)
 	return connectionData
 }

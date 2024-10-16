@@ -2,7 +2,7 @@
 
 🌍 *[English](README.md) ∙ [Português](README_pt.md)*
 
-`vnc-summarizer` é o repositório responsável pelo software que sumariza as proposições exibidas na plataforma
+`vnc-summarizer` é o serviço responsável pelo software que sumariza as proposições exibidas na plataforma
 [Você na Câmara (VNC)](#você-na-câmara-vnc). Neste repositório você encontrará o código-fonte do software principal do
 VNC e também o container responsável por executar este código, deste modo você poderá facilmente rodar o projeto.
 
@@ -10,7 +10,12 @@ VNC e também o container responsável por executar este código, deste modo voc
 
 ### Pré-requisitos
 
-Para executar este código você precisará preencher alguns campos do arquivo `.env` presente no diretório _config_
+Para executar corretamente o `vnc-summarizer` você precisará ter os containers dos serviços
+[`vnc-databases`](https://github.com/devlucassantos/vnc-databases) e
+[`vnc-pdf-content-extractor-api`](https://github.com/devlucassantos/vnc-pdf-content-extractor-api) em execução, de modo
+que o container desta aplicação tenha acesso aos serviços necessários para a consulta e manipulação dos dados.
+
+Após isso, você precisará preencher também alguns campos do arquivo `.env` presente no diretório _config_
 (`./src/config/.env`). Neste arquivo você poderá observar que alguns campos já estão preenchidos, isto porque são
 configurações padrões que poderão ser utilizadas caso você opte por não modificar nenhum dos containers pré-configurados
 para rodar os repositórios que compõem o VNC, entretanto fique a vontade para modificar quaisquer uma dessas variáveis
@@ -25,12 +30,6 @@ IAM](https://docs.aws.amazon.com/pt_br/IAM/latest/UserGuide/id_credentials_acces
 * `AWS_S3_BUCKET` → Nome do bucket onde as imagens das proposições serão salvas no AWS S3.
 * `OPENAI_API_KEY` → Para o preenchimento desta variável deve-se [criar uma chave de API no ChatGPT](https://platform.openai.com/account/api-keys), 
 serviço de IA atualmente utilizado pelo VNC.
-* `UNICLOUD_KEY` → Para o preenchimento desta variável deve-se [criar uma chave de API no UniCLOUD](https://cloud.unidoc.io/#/api-keys),
-serviço de manipulação de PDFs atualmente utilizado pelo VNC.
-
-> Observe que para executar corretamente o `vnc-summarizer` você precisará ter os [containers do `vnc-databases`](https://github.com/devlucassantos/vnc-databases)
-em execução de modo que o container desta aplicação tenha acesso aos bancos de dados necessários para a consulta e
-modificação dos dados.
 
 ### Executando via Docker
 
