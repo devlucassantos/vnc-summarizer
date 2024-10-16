@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"vnc-summarizer/core/interfaces/repositories"
@@ -364,15 +365,21 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		return nil, err
 	}
 
+	activeEconomyMode, err := strconv.ParseBool(os.Getenv("ACTIVE_ECONOMY_MODE"))
+	if err != nil {
+		log.Error("Error converting environment variable ACTIVE_ECONOMY_MODE to boolean, this setting is disabled: ",
+			err.Error())
+	}
+
 	var propositionImageUrl string
-	if !strings.Contains(articleType.Codes(), "default_option") || os.Getenv("ECONOMY_MODE") != "on" {
+	if !strings.Contains(articleType.Codes(), "default_option") || !activeEconomyMode {
 		propositionImageUrl, err = getPropositionImage(propositionCode, propositionContentSummary)
 		if err != nil {
 			log.Error("getPropositionImage(): ", err.Error())
 			return nil, err
 		}
 	} else {
-		log.Infof("Economy mode active: Image generation for proposition %d was skipped", propositionCode)
+		log.Infof("Active economy mode: Image generation for proposition %d was skipped", propositionCode)
 	}
 
 	articleData, err := article.NewBuilder().Type(*articleType).Build()
@@ -542,7 +549,7 @@ func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interfac
 				return nil, nil, err
 			}
 
-			partyMap, err := getDataFromUrl(fmt.Sprint(authorLastStatus["uriPartido"]))
+			partyMap, err := getDataFromUrl("https://dadosabertos.camara.leg.br/api/v2/partidos/37906")
 			if err != nil {
 				log.Error("getDataFromUrl(): ", err.Error())
 				return nil, nil, err
