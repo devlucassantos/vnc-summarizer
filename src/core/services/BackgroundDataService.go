@@ -549,7 +549,7 @@ func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interfac
 				return nil, nil, err
 			}
 
-			partyMap, err := getDataFromUrl("https://dadosabertos.camara.leg.br/api/v2/partidos/37906")
+			partyMap, err := getDataFromUrl(fmt.Sprint(authorLastStatus["uriPartido"]))
 			if err != nil {
 				log.Error("getDataFromUrl(): ", err.Error())
 				return nil, nil, err
