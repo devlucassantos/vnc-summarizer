@@ -3,14 +3,17 @@ package main
 import (
 	"github.com/joho/godotenv"
 	"github.com/labstack/gommon/log"
+	"os"
 	"time"
 	"vnc-summarizer/config/diconteiner"
 )
 
 func main() {
-	err := godotenv.Load("config/.env")
-	if err != nil {
-		log.Fatal("Environment variables file not found: ", err.Error())
+	if os.Getenv("APPLICATION_MODE") != "production" {
+		err := godotenv.Load("config/.env")
+		if err != nil {
+			log.Fatal("Environment variables file not found: ", err.Error())
+		}
 	}
 
 	backgroundDataService := diconteiner.GetBackgroundDataService()

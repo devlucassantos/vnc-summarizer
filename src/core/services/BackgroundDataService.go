@@ -217,21 +217,9 @@ func getLatestPropositionsRegisteredAtCamara() ([]int, error) {
 	log.Info("Starting the search for the latest propositions")
 
 	latestPropositionsUrl := "https://dadosabertos.camara.leg.br/api/v2/proposicoes?ordenarPor=id&ordem=desc&itens=25"
-	response, err := requests.GetRequest(latestPropositionsUrl)
+	newPropositions, err := getDataSliceFromUrl(latestPropositionsUrl)
 	if err != nil {
-		log.Error("requests.GetRequest(): ", err.Error())
-		return nil, err
-	}
-
-	responseBody, err := requests.DecodeResponseBody(response)
-	if err != nil {
-		log.Error("requests.DecodeResponseBody(): ", err.Error())
-		return nil, err
-	}
-
-	newPropositions, err := converters.ToMapSlice(responseBody["dados"])
-	if err != nil {
-		log.Error("converters.ToMapSlice(): ", err.Error())
+		log.Error("getDataSliceFromUrl(): ", err.Error())
 		return nil, err
 	}
 
@@ -245,6 +233,28 @@ func getLatestPropositionsRegisteredAtCamara() ([]int, error) {
 
 	log.Info("Successful search for the latest propositions: ", propositionCodes)
 	return propositionCodes, nil
+}
+
+func getDataSliceFromUrl(url string) ([]map[string]interface{}, error) {
+	response, err := requests.GetRequest(url)
+	if err != nil {
+		log.Error("requests.GetRequest(): ", err.Error())
+		return nil, err
+	}
+
+	responseBody, err := requests.DecodeResponseBody(response)
+	if err != nil {
+		log.Error("requests.DecodeResponseBody(): ", err.Error())
+		return nil, err
+	}
+
+	resultMapSlice, err := converters.ToMapSlice(responseBody["dados"])
+	if err != nil {
+		log.Error("converters.ToMapSlice(): ", err.Error())
+		return nil, err
+	}
+
+	return resultMapSlice, nil
 }
 
 func extractPropositionCodes(propositions []map[string]interface{}) ([]int, error) {
@@ -304,10 +314,10 @@ func (instance BackgroundData) getProposition(propositionCode int) (*proposition
 }
 
 func (instance BackgroundData) getPropositionDataToRegister(propositionCode int) (*proposition.Proposition, error) {
-	propositionUrl := fmt.Sprintf("https://dadosabertos.camara.leg.br/api/v2/proposicoes/%d", propositionCode)
-	propositionData, err := getDataFromUrl(propositionUrl)
+	propositionUrl := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/proposicoes/", propositionCode)
+	propositionData, err := getDataObjectFromUrl(propositionUrl)
 	if err != nil {
-		log.Error("getDataFromUrl(): ", err.Error())
+		log.Error("getDataObjectFromUrl(): ", err.Error())
 		return nil, err
 	}
 
@@ -413,7 +423,7 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 	return propositionDataToRegister, err
 }
 
-func getDataFromUrl(url string) (map[string]interface{}, error) {
+func getDataObjectFromUrl(url string) (map[string]interface{}, error) {
 	response, err := requests.GetRequest(url)
 	if err != nil {
 		log.Error("requests.GetRequest(): ", err.Error())
@@ -482,22 +492,10 @@ func getPropositionContent(propositionCode int, propositionPdfUrl string) (strin
 	return propositionContent, nil
 }
 
-func getAuthorsOfTheProposition(url string) ([]deputy.Deputy, []external.ExternalAuthor, error) {
-	response, err := requests.GetRequest(url)
+func getAuthorsOfTheProposition(authorsUrl string) ([]deputy.Deputy, []external.ExternalAuthor, error) {
+	authors, err := getDataSliceFromUrl(authorsUrl)
 	if err != nil {
-		log.Error("requests.GetRequest(): ", err.Error())
-		return nil, nil, err
-	}
-
-	responseBody, err := requests.DecodeResponseBody(response)
-	if err != nil {
-		log.Error("requests.DecodeResponseBody(): ", err.Error())
-		return nil, nil, err
-	}
-
-	authors, err := converters.ToMapSlice(responseBody["dados"])
-	if err != nil {
-		log.Error("converters.ToMapSlice(): ", err.Error())
+		log.Error("getDataSliceFromUrl(): ", err.Error())
 		return nil, nil, err
 	}
 
@@ -529,7 +527,7 @@ func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interfac
 		var authorData map[string]interface{}
 		var err error
 		if authorUrl != "" {
-			authorData, err = getDataFromUrl(authorUrl)
+			authorData, err = getDataObjectFromUrl(authorUrl)
 			if err != nil {
 				log.Warnf("Error searching data for author %s - %s: %s", authorName, authorType, err.Error())
 				return nil, nil, err
@@ -549,9 +547,18 @@ func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interfac
 				return nil, nil, err
 			}
 
-			partyMap, err := getDataFromUrl(fmt.Sprint(authorLastStatus["uriPartido"]))
+			urlOfPartiesWithAcronym := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/partidos?sigla=",
+				authorLastStatus["siglaPartido"])
+			partiesWithTheAcronym, err := getDataSliceFromUrl(urlOfPartiesWithAcronym)
 			if err != nil {
-				log.Error("getDataFromUrl(): ", err.Error())
+				log.Error("getDataSliceFromUrl(): ", err.Error())
+				return nil, nil, err
+			}
+
+			partyUrl := fmt.Sprint(partiesWithTheAcronym[0]["uri"])
+			partyMap, err := getDataObjectFromUrl(partyUrl)
+			if err != nil {
+				log.Error("getDataObjectFromUrl(): ", err.Error())
 				return nil, nil, err
 			}
 
@@ -608,22 +615,10 @@ func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interfac
 }
 
 func getArticleTypeDescription(articleTypeCode string) (string, error) {
-	url := "https://dadosabertos.camara.leg.br/api/v2/referencias/proposicoes/siglaTipo"
-	response, err := requests.GetRequest(url)
+	articleTypesUrl := "https://dadosabertos.camara.leg.br/api/v2/referencias/proposicoes/siglaTipo"
+	articleTypes, err := getDataSliceFromUrl(articleTypesUrl)
 	if err != nil {
-		log.Error("requests.GetRequest(): ", err.Error())
-		return "", err
-	}
-
-	responseBody, err := requests.DecodeResponseBody(response)
-	if err != nil {
-		log.Error("requests.DecodeResponseBody(): ", err.Error())
-		return "", err
-	}
-
-	articleTypes, err := converters.ToMapSlice(responseBody["dados"])
-	if err != nil {
-		log.Error("converters.ToMapSlice(): ", err.Error())
+		log.Error("getDataSliceFromUrl(): ", err.Error())
 		return "", err
 	}
 

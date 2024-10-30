@@ -49,6 +49,11 @@ func (ConnectionManager) rollbackTransaction(transaction *sqlx.Tx) {
 }
 
 func getPostgresConnectionUri() string {
+	databaseUrl := os.Getenv("DATABASE_URL")
+	if len(databaseUrl) > 0 {
+		return databaseUrl
+	}
+
 	host := os.Getenv("POSTGRESQL_HOST")
 	port := os.Getenv("POSTGRESQL_PORT")
 	user := os.Getenv("POSTGRESQL_USER")
