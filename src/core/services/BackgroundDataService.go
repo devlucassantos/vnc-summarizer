@@ -368,6 +368,7 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		log.Error("requestToChatGpt(): ", err.Error())
 		return nil, err
 	}
+	propositionTitle = strings.Trim(strings.Trim(propositionTitle, "*"), "\"")
 
 	submittedAt, err := time.Parse("2006-01-02T15:04", fmt.Sprint(propositionData["dataApresentacao"]))
 	if err != nil {
@@ -402,7 +403,7 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 	propositionBuilder := proposition.NewBuilder().
 		Code(propositionCode).
 		OriginalTextUrl(originalTextUrl).
-		Title(strings.Trim(propositionTitle, "\"")).
+		Title(propositionTitle).
 		Content(propositionContentSummary).
 		SubmittedAt(submittedAt).
 		SpecificType(specificType).
