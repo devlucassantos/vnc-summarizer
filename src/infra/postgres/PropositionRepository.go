@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"github.com/devlucassantos/vnc-domains/src/domains/article"
+	"github.com/devlucassantos/vnc-domains/src/domains/articletype"
 	"github.com/devlucassantos/vnc-domains/src/domains/proposition"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
@@ -107,27 +109,51 @@ func (instance Proposition) GetPropositionsByDate(date time.Time) ([]proposition
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
 
-	var propositions []dto.Proposition
-	err = postgresConnection.Select(&propositions, queries.Proposition().Select().ByDate(), date)
+	var propositionArticles []dto.Article
+	err = postgresConnection.Select(&propositionArticles, queries.Proposition().Select().ByDate(), date)
 	if err != nil {
 		log.Error("Error retrieving the proposition data by date from the database: ", err.Error())
 		return nil, err
 	}
 
 	var propositionData []proposition.Proposition
-	for _, propositionDetails := range propositions {
-		propositionDomain, err := proposition.NewBuilder().
-			Id(propositionDetails.Id).
-			Code(propositionDetails.Code).
-			OriginalTextUrl(propositionDetails.OriginalTextUrl).
-			Title(propositionDetails.Title).
-			Content(propositionDetails.Content).
-			SubmittedAt(propositionDetails.SubmittedAt).
-			CreatedAt(propositionDetails.CreatedAt).
-			UpdatedAt(propositionDetails.UpdatedAt).
+	for _, propositionArticle := range propositionArticles {
+		articleType, err := articletype.NewBuilder().
+			Id(propositionArticle.ArticleType.Id).
+			Description(propositionArticle.ArticleType.Description).
+			Codes(propositionArticle.ArticleType.Codes).
+			Color(propositionArticle.ArticleType.Color).
+			SortOrder(propositionArticle.ArticleType.SortOrder).
+			CreatedAt(propositionArticle.ArticleType.CreatedAt).
+			UpdatedAt(propositionArticle.ArticleType.UpdatedAt).
 			Build()
 		if err != nil {
-			log.Errorf("Error validating data for proposition %s: %s", propositionDetails.Id, err.Error())
+			log.Errorf("Error validating data for article type %s of article %s: %s",
+				propositionArticle.ArticleType.Id, propositionArticle.Id, err.Error())
+			return nil, err
+		}
+
+		articleData, err := article.NewBuilder().Type(*articleType).Build()
+		if err != nil {
+			log.Errorf("Error validating data for article %s of proprosition %s: %s", propositionArticle.Id,
+				propositionArticle.Proposition.Id, err.Error())
+			return nil, err
+		}
+
+		propositionDomain, err := proposition.NewBuilder().
+			Id(propositionArticle.Proposition.Id).
+			Code(propositionArticle.Proposition.Code).
+			OriginalTextUrl(propositionArticle.Proposition.OriginalTextUrl).
+			Title(propositionArticle.Proposition.Title).
+			Content(propositionArticle.Proposition.Content).
+			SubmittedAt(propositionArticle.Proposition.SubmittedAt).
+			Article(*articleData).
+			CreatedAt(propositionArticle.Proposition.CreatedAt).
+			UpdatedAt(propositionArticle.Proposition.UpdatedAt).
+			Build()
+		if err != nil {
+			log.Errorf("Error validating data for proposition %s: %s", propositionArticle.Proposition.Id,
+				err.Error())
 			return nil, err
 		}
 

@@ -368,6 +368,7 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 		log.Error("requestToChatGpt(): ", err.Error())
 		return nil, err
 	}
+	propositionTitle = strings.Trim(strings.Trim(propositionTitle, "*"), "\"")
 
 	submittedAt, err := time.Parse("2006-01-02T15:04", fmt.Sprint(propositionData["dataApresentacao"]))
 	if err != nil {
@@ -402,7 +403,7 @@ func (instance BackgroundData) getPropositionDataToRegister(propositionCode int)
 	propositionBuilder := proposition.NewBuilder().
 		Code(propositionCode).
 		OriginalTextUrl(originalTextUrl).
-		Title(strings.Trim(propositionTitle, "\"")).
+		Title(propositionTitle).
 		Content(propositionContentSummary).
 		SubmittedAt(submittedAt).
 		SpecificType(specificType).
@@ -724,14 +725,46 @@ func (instance BackgroundData) RegisterNewNewsletter(referenceDate time.Time) {
 			formattedReferenceDate)
 	}
 
-	newsletterData, err := instance.generateNewsletter(propositions, referenceDate)
+	var mostRelevantPropositions []proposition.Proposition
+	maximumNumberOfRelevantPropositions := 10
+	if len(propositions) > maximumNumberOfRelevantPropositions {
+		for _, propositionData := range propositions {
+			if len(mostRelevantPropositions) >= maximumNumberOfRelevantPropositions {
+				break
+			}
+
+			propositionArticle := propositionData.Article()
+			articleType := propositionArticle.Type()
+			if !strings.Contains(articleType.Codes(), "default_option") {
+				mostRelevantPropositions = append(mostRelevantPropositions, propositionData)
+			}
+		}
+
+		if len(mostRelevantPropositions) < maximumNumberOfRelevantPropositions {
+			for _, propositionData := range propositions {
+				if len(mostRelevantPropositions) >= maximumNumberOfRelevantPropositions {
+					break
+				}
+
+				propositionArticle := propositionData.Article()
+				articleType := propositionArticle.Type()
+				if strings.Contains(articleType.Codes(), "default_option") {
+					mostRelevantPropositions = append(mostRelevantPropositions, propositionData)
+				}
+			}
+		}
+	} else {
+		mostRelevantPropositions = propositions
+	}
+
+	newsletterData, err := instance.generateNewsletter(mostRelevantPropositions, referenceDate)
 	if err != nil {
 		for attempt := 1; attempt <= 3; attempt++ {
 			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
 			log.Warnf("It was not possible to register newsletter of %s on the %dth attempt, trying again in %d seconds",
 				formattedReferenceDate, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
-			newsletterData, err = instance.generateNewsletter(propositions, referenceDate)
+			newsletterData, err = instance.generateNewsletter(mostRelevantPropositions, referenceDate)
 			if err == nil {
 				break
 			}
@@ -773,8 +806,7 @@ func (instance BackgroundData) generateNewsletter(propositions []proposition.Pro
 
 	var contentOfPropositions string
 	for count, propositionData := range propositions {
-		contentOfPropositions += fmt.Sprintf("Título da %dª matéria: %s\nConteúdo: %s\n\n", count+1,
-			propositionData.Title(), propositionData.Content())
+		contentOfPropositions += fmt.Sprintf("%dª proposição: %s\n\n", count+1, propositionData.Content())
 	}
 
 	chatGptCommand := "Gere uma descrição para ser usada no boletim abaixo sobre o conjunto de proposições  políticas " +
