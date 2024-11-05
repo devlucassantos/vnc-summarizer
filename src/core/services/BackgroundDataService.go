@@ -548,15 +548,21 @@ func convertAuthorsMapToDeputiesAndExternalAuthors(authors []map[string]interfac
 				return nil, nil, err
 			}
 
-			urlOfPartiesWithAcronym := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/partidos?sigla=",
-				authorLastStatus["siglaPartido"])
-			partiesWithTheAcronym, err := getDataSliceFromUrl(urlOfPartiesWithAcronym)
+			urlOfExternalPartyData := "https://dadosabertos.camara.leg.br/api/v2/partidos?itens=100"
+			parties, err := getDataSliceFromUrl(urlOfExternalPartyData)
 			if err != nil {
 				log.Error("getDataSliceFromUrl(): ", err.Error())
 				return nil, nil, err
 			}
 
-			partyUrl := fmt.Sprint(partiesWithTheAcronym[0]["uri"])
+			var partyUrl string
+			for _, externalPartyData := range parties {
+				if externalPartyData["sigla"] == authorLastStatus["siglaPartido"] {
+					partyUrl = fmt.Sprint(externalPartyData["uri"])
+					break
+				}
+			}
+
 			partyMap, err := getDataObjectFromUrl(partyUrl)
 			if err != nil {
 				log.Error("getDataObjectFromUrl(): ", err.Error())
