@@ -84,8 +84,6 @@ func (instance Party) GetPartyByCode(code int) (*party.Party, error) {
 		Name(partyData.Name).
 		Acronym(partyData.Acronym).
 		ImageUrl(partyData.ImageUrl).
-		CreatedAt(partyData.CreatedAt).
-		UpdatedAt(partyData.UpdatedAt).
 		Build()
 	if err != nil {
 		log.Errorf("Error validating data for party %s: %s", partyData.Id, err.Error())

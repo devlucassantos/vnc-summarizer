@@ -2,7 +2,6 @@ package dto
 
 import (
 	"github.com/google/uuid"
-	"time"
 )
 
 type Deputy struct {
@@ -12,7 +11,6 @@ type Deputy struct {
 	Name          string    `db:"deputy_name"`
 	ElectoralName string    `db:"deputy_electoral_name"`
 	ImageUrl      string    `db:"deputy_image_url"`
-	CreatedAt     time.Time `db:"deputy_created_at"`
-	UpdatedAt     time.Time `db:"deputy_updated_at"`
+	FederatedUnit string    `db:"deputy_federated_unit"`
 	*Party
 }

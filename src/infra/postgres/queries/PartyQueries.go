@@ -26,7 +26,7 @@ func (partySqlManager) Select() *partySelectSqlManager {
 
 func (partySelectSqlManager) ByCode() string {
 	return `SELECT id AS party_id, code AS party_code, name AS party_name, acronym AS party_acronym,
-       			image_url AS party_image_url, created_at AS party_created_at, updated_at AS party_updated_at
+       			image_url AS party_image_url
 			FROM party
 			WHERE active = true AND code = $1`
 }

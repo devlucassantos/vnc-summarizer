@@ -10,7 +10,7 @@ import (
 	"github.com/labstack/gommon/log"
 	"net/http"
 	"os"
-	"time"
+	"vnc-summarizer/core/services/utils/datetime"
 )
 
 func savePropositionImageInAwsS3(propositionCode int, image []byte) (string, error) {
@@ -19,7 +19,7 @@ func savePropositionImageInAwsS3(propositionCode int, image []byte) (string, err
 	awsRegion := os.Getenv("AWS_REGION")
 	awsAccessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
 	awsAccessSecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	awsSessionToken := ""
+	awsSessionToken := os.Getenv("AWS_SESSION_TOKEN")
 
 	awsConfig := aws.Config{
 		Region:      awsRegion,
@@ -29,7 +29,15 @@ func savePropositionImageInAwsS3(propositionCode int, image []byte) (string, err
 	s3Client := s3.NewFromConfig(awsConfig)
 
 	bucket := os.Getenv("AWS_S3_BUCKET")
-	key := fmt.Sprintf("propositions/%d_%s.png", propositionCode, time.Now().Format("150405_02012006"))
+
+	currentDateTime, err := datetime.GetCurrentDateTimeInBrazil()
+	if err != nil {
+		log.Error("datetime.GetCurrentDateTimeInBrazil(): ", err)
+		return "", err
+	}
+
+	key := fmt.Sprintf("propositions/%d_%s.png", propositionCode,
+		currentDateTime.Format("150405_02012006"))
 
 	uploader := s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
@@ -38,7 +46,7 @@ func savePropositionImageInAwsS3(propositionCode int, image []byte) (string, err
 		ContentType: aws.String(http.DetectContentType(image)),
 	}
 
-	_, err := s3Client.PutObject(context.TODO(), &uploader)
+	_, err = s3Client.PutObject(context.TODO(), &uploader)
 	if err != nil {
 		log.Errorf("Error saving image of proposition %d to AWS S3: %s", propositionCode, err.Error())
 		return "", err

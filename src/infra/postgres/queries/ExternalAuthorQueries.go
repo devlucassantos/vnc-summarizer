@@ -7,7 +7,7 @@ func ExternalAuthor() *externalAuthorSqlManager {
 }
 
 func (externalAuthorSqlManager) Insert() string {
-	return `INSERT INTO external_author(name, type)
+	return `INSERT INTO external_author(name, external_author_type_id)
 			VALUES ($1, $2)
 			RETURNING id`
 }
@@ -18,9 +18,14 @@ func (externalAuthorSqlManager) Select() *externalAuthorSelectSqlManager {
 	return &externalAuthorSelectSqlManager{}
 }
 
-func (externalAuthorSelectSqlManager) ByNameAndType() string {
-	return `SELECT id AS external_author_id, name AS external_author_name, type AS external_author_type,
-        		created_at AS external_author_created_at, updated_at AS external_author_updated_at
+func (externalAuthorSelectSqlManager) ByNameAndTypeCode() string {
+	return `SELECT external_author.id AS external_author_id,
+				external_author.name AS external_author_name,
+				external_author_type.id AS external_author_type_id,
+				external_author_type.code AS external_author_type_code,
+				external_author_type.description AS external_author_type_description
 			FROM external_author
-			WHERE active = true AND name = $1 AND type = $2`
+				INNER JOIN external_author_type ON external_author_type.id = external_author.external_author_type_id
+			WHERE external_author.active = true AND external_author_type.active = true AND
+				external_author.name = $1 AND external_author_type.code = $2`
 }

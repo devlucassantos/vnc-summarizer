@@ -5,5 +5,5 @@ import (
 )
 
 type ArticleType interface {
-	GetArticleTypeByCodeOrDefaultType(code string) (*articletype.ArticleType, error)
+	GetArticleTypeByCode(code string) (*articletype.ArticleType, error)
 }

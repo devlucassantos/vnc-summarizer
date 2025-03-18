@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/labstack/gommon/log"
+	"io"
 	"net/http"
 	"os"
 	"vnc-summarizer/core/services/utils/converters"
-	"vnc-summarizer/core/services/utils/requests"
+	"vnc-summarizer/core/services/utils/requesters"
 )
 
 type DallERequest struct {
@@ -55,10 +56,17 @@ func requestToDallE(prompt, purpose string) (string, error) {
 		log.Error("Error making request to DALL·E: ", err.Error())
 		return "", nil
 	}
-	defer requests.CloseResponseBody(request, response)
+	defer requesters.CloseResponseBody(request, response)
 
 	if response.StatusCode != http.StatusOK {
-		errorMessage := fmt.Sprintf("Error making request to DALL·E: [Status code: %s]", response.Status)
+		responseBody, err := io.ReadAll(response.Body)
+		if err != nil {
+			log.Error("Error interpreting DALL·E response: ", err.Error())
+			return "", err
+		}
+
+		errorMessage := fmt.Sprintf("Error making request to DALL·E: [Status: %s; Body: %s]", response.Status,
+			string(responseBody))
 		log.Error(errorMessage)
 		return "", errors.New(errorMessage)
 	}
@@ -71,12 +79,13 @@ func requestToDallE(prompt, purpose string) (string, error) {
 	}
 
 	if len(dallEResponse.Data) < 1 {
-		errorMessage := "could not get the result of the request to DALL·E"
+		errorMessage := fmt.Sprint("Could not get the result of the request to DALL·E: ", purpose)
 		log.Error(errorMessage)
 		return "", errors.New(errorMessage)
 	}
 
-	log.Info("Successful communication with DALL·E: ", purpose)
+	requestResult := dallEResponse.Data[0].Url
 
-	return dallEResponse.Data[0].Url, nil
+	log.Info("Successful communication with DALL·E: ", purpose)
+	return requestResult, nil
 }

@@ -3,11 +3,12 @@ package postgres
 import (
 	"database/sql"
 	"errors"
+	"github.com/devlucassantos/vnc-domains/src/domains/article"
 	"github.com/devlucassantos/vnc-domains/src/domains/newsletter"
-	"github.com/devlucassantos/vnc-domains/src/domains/proposition"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
 	"time"
+	"vnc-summarizer/core/services/utils/datetime"
 	"vnc-summarizer/infra/dto"
 	"vnc-summarizer/infra/postgres/queries"
 )
@@ -22,11 +23,11 @@ func NewNewsletterRepository(connectionManager connectionManagerInterface) *News
 	}
 }
 
-func (instance Newsletter) CreateNewsletter(newsletter newsletter.Newsletter, propositions []proposition.Proposition) error {
+func (instance Newsletter) CreateNewsletter(newsletter newsletter.Newsletter) (*uuid.UUID, error) {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
 		log.Error("connectionManager.createConnection(): ", err.Error())
-		return err
+		return nil, err
 	}
 	defer instance.connectionManager.closeConnection(postgresConnection)
 
@@ -36,52 +37,58 @@ func (instance Newsletter) CreateNewsletter(newsletter newsletter.Newsletter, pr
 	if err != nil {
 		log.Errorf("Error starting transaction to register the newsletter of %s: %s", formattedReferenceDate,
 			err.Error())
-		return err
+		return nil, err
 	}
 	defer instance.connectionManager.rollbackTransaction(transaction)
 
-	var newsletterId uuid.UUID
-	err = transaction.QueryRow(queries.Newsletter().Insert(), newsletter.ReferenceDate(),
-		newsletter.Title(), newsletter.Description()).Scan(&newsletterId)
+	referenceDateTime, err := datetime.GetCurrentDateTimeInBrazil()
 	if err != nil {
-		log.Errorf("Error registering the newsletter of %s: %s", formattedReferenceDate, err.Error())
-		return err
-	}
-
-	for _, propositionData := range propositions {
-		_, err = transaction.Exec(queries.NewsletterProposition().Insert(), newsletterId, propositionData.Id())
-		if err != nil {
-			log.Errorf("Error registering proposition %s as part of newsletter %s of %s: %s",
-				propositionData.Id(), newsletterId, formattedReferenceDate, err.Error())
-			continue
-		}
-
-		log.Infof("Proposition %s registered as part of newsletter of %s", propositionData.Id(),
-			formattedReferenceDate)
+		log.Error("datetime.GetCurrentDateTimeInBrazil(): ", err)
+		return nil, err
 	}
 
 	var articleId uuid.UUID
 	newsletterArticle := newsletter.Article()
 	articleType := newsletterArticle.Type()
-	err = transaction.QueryRow(queries.Article().Insert().Newsletter(), newsletterId, articleType.Id()).Scan(&articleId)
+	err = transaction.QueryRow(queries.Article().Insert(), articleType.Id(), referenceDateTime).Scan(&articleId)
 	if err != nil {
 		log.Errorf("Error registering newsletter of %s as article: %s", formattedReferenceDate, err.Error())
-		return err
+		return nil, err
+	}
+
+	var newsletterId uuid.UUID
+	err = transaction.QueryRow(queries.Newsletter().Insert(), newsletter.ReferenceDate(), newsletter.Description(),
+		articleId).Scan(&newsletterId)
+	if err != nil {
+		log.Errorf("Error registering the newsletter of %s: %s", formattedReferenceDate, err.Error())
+		return nil, err
+	}
+
+	for _, articleData := range newsletter.Articles() {
+		_, err = transaction.Exec(queries.NewsletterArticle().Insert(), newsletterId, articleData.Id())
+		if err != nil {
+			log.Errorf("Error registering article %s as part of newsletter %s of %s: %s", articleData.Id(),
+				newsletterId, formattedReferenceDate, err.Error())
+			return nil, err
+		}
+
+		log.Infof("Article %s registered as part of newsletter of %s", articleData.Id(),
+			formattedReferenceDate)
 	}
 
 	err = transaction.Commit()
 	if err != nil {
 		log.Errorf("Error confirming transaction to register newsletter of %s: %s", formattedReferenceDate,
 			err.Error())
-		return err
+		return nil, err
 	}
 
 	log.Infof("Newsletter of %s successfully registered with ID %s (Article ID: %s))", formattedReferenceDate,
 		newsletterId, articleId)
-	return nil
+	return &newsletterId, nil
 }
 
-func (instance Newsletter) UpdateNewsletter(newsletter newsletter.Newsletter, newPropositions []proposition.Proposition) error {
+func (instance Newsletter) UpdateNewsletter(newsletter newsletter.Newsletter, newArticles []article.Article) error {
 	postgresConnection, err := instance.connectionManager.createConnection()
 	if err != nil {
 		log.Error("connectionManager.createConnection(): ", err.Error())
@@ -106,16 +113,16 @@ func (instance Newsletter) UpdateNewsletter(newsletter newsletter.Newsletter, ne
 		return err
 	}
 
-	for _, propositionData := range newPropositions {
-		_, err = transaction.Exec(queries.NewsletterProposition().Insert(), newsletter.Id(), propositionData.Id())
+	for _, articleData := range newArticles {
+		_, err = transaction.Exec(queries.NewsletterArticle().Insert(), newsletter.Id(), articleData.Id())
 		if err != nil {
-			log.Errorf("Error registering proposition %s as part of newsletter %s of %s: %s",
-				propositionData.Id(), newsletter.Id(), formattedReferenceDate, err.Error())
-			continue
+			log.Errorf("Error registering article %s as part of newsletter %s of %s: %s",
+				articleData.Id(), newsletter.Id(), formattedReferenceDate, err.Error())
+			return err
 		}
 
-		log.Infof("Proposition %s registered as part of newsletter %s of %s", propositionData.Id(),
-			newsletter.Id(), formattedReferenceDate)
+		log.Infof("Article %s registered as part of newsletter %s of %s", articleData.Id(), newsletter.Id(),
+			formattedReferenceDate)
 	}
 
 	_, err = transaction.Exec(queries.Article().Update().NewsletterReferenceDateTime(), newsletter.Id())
@@ -159,10 +166,7 @@ func (instance Newsletter) GetNewsletterByReferenceDate(referenceDate time.Time)
 	newsletterDomain, err := newsletter.NewBuilder().
 		Id(newsletterData.Id).
 		ReferenceDate(newsletterData.ReferenceDate).
-		Title(newsletterData.Title).
 		Description(newsletterData.Description).
-		CreatedAt(newsletterData.CreatedAt).
-		UpdatedAt(newsletterData.UpdatedAt).
 		Build()
 	if err != nil {
 		log.Errorf("Error validating data for newsletter %s: %s", newsletterData.Id, err.Error())

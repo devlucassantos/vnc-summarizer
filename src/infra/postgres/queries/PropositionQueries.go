@@ -1,5 +1,10 @@
 package queries
 
+import (
+	"fmt"
+	"strings"
+)
+
 type propositionSqlManager struct{}
 
 func Proposition() *propositionSqlManager {
@@ -7,8 +12,9 @@ func Proposition() *propositionSqlManager {
 }
 
 func (propositionSqlManager) Insert() string {
-	return `INSERT INTO proposition(code, original_text_url, title, content, submitted_at, image_url, specific_type)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+	return `INSERT INTO proposition(code, original_text_url, original_text_mime_type, title, content, submitted_at,
+                        image_url, image_description, specific_type, proposition_type_id, article_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING id`
 }
 
@@ -18,26 +24,16 @@ func (propositionSqlManager) Select() *propositionSelectSqlManager {
 	return &propositionSelectSqlManager{}
 }
 
-func (propositionSelectSqlManager) ByDate() string {
-	return `SELECT article.id AS article_id, proposition.id AS proposition_id, proposition.code AS proposition_code,
-       			proposition.original_text_url AS proposition_original_text_url, proposition.title AS proposition_title,
-       			proposition.content AS proposition_content, proposition.submitted_at AS proposition_submitted_at,
-       			proposition.created_at AS proposition_created_at, proposition.updated_at AS proposition_updated_at,
-       			article_type.id AS article_type_id, article_type.description AS article_type_description,
-       			article_type.codes AS article_type_codes, article_type.color AS article_type_color,
-       			article_type.sort_order AS article_type_sort_order, article_type.created_at AS article_type_created_at,
-       			article_type.updated_at AS article_type_updated_at
-    		FROM proposition
-    		    INNER JOIN article ON article.proposition_id = proposition.id
-    			INNER JOIN article_type ON article_type.id = article.article_type_id
-    		WHERE proposition.active = true AND DATE(proposition.submitted_at) = $1
-    		ORDER BY article.reference_date_time`
-}
+func (propositionSelectSqlManager) ByCodes(numberOfPropositions int) string {
+	var parameters []string
+	for i := 1; i <= numberOfPropositions; i++ {
+		parameters = append(parameters, fmt.Sprintf("$%d", i))
+	}
 
-func (propositionSelectSqlManager) LatestPropositionsCodes() string {
-	return `SELECT code
+	return fmt.Sprintf(`SELECT id AS proposition_id, code AS proposition_code,
+				original_text_url AS proposition_original_text_url,
+				original_text_mime_type AS proposition_original_text_mime_type, title AS proposition_title,
+				content AS proposition_content, submitted_at AS proposition_submitted_at
 			FROM proposition
-			WHERE active = true
-			ORDER BY created_at DESC
-			LIMIT 50`
+			WHERE active = true AND code IN (%s)`, strings.Join(parameters, ","))
 }

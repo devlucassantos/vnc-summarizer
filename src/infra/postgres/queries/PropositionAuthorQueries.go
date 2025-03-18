@@ -13,8 +13,8 @@ func (propositionAuthorSqlManager) Insert() *propositionAuthorInsertSqlManager {
 }
 
 func (propositionAuthorInsertSqlManager) Deputy() string {
-	return `INSERT INTO proposition_author(proposition_id, deputy_id, party_id)
-			VALUES ($1, $2, $3)
+	return `INSERT INTO proposition_author(proposition_id, deputy_id, party_id, federated_unit)
+			VALUES ($1, $2, $3, $4)
 			RETURNING id`
 }
 

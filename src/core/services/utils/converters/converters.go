@@ -37,7 +37,7 @@ func ToMap(data interface{}) (map[string]interface{}, error) {
 	var resultMap map[string]interface{}
 	err = json.Unmarshal(jsonData, &resultMap)
 	if err != nil {
-		log.Error("Error converting to map[string]interface{}: ", err.Error())
+		log.Error("Error converting data to map[string]interface{}: ", err.Error())
 		return nil, err
 	}
 
@@ -54,9 +54,35 @@ func ToMapSlice(data interface{}) ([]map[string]interface{}, error) {
 	var resultMap []map[string]interface{}
 	err = json.Unmarshal(jsonData, &resultMap)
 	if err != nil {
-		log.Error("Error converting to []map[string]interface{}: ", err.Error())
+		log.Error("Error converting data to []map[string]interface{}: ", err.Error())
 		return nil, err
 	}
 
 	return resultMap, nil
+}
+
+func IntSliceToUniqueIntSlice(data []int) []int {
+	var uniqueIntSlice []int
+	uniqueIntMap := map[int]struct{}{}
+	for _, number := range data {
+		if _, exists := uniqueIntMap[number]; !exists {
+			uniqueIntMap[number] = struct{}{}
+			uniqueIntSlice = append(uniqueIntSlice, number)
+		}
+	}
+
+	return uniqueIntSlice
+}
+
+func StringSliceToUniqueStringSlice(data []string) []string {
+	var uniqueStringSlice []string
+	uniqueStringMap := map[string]struct{}{}
+	for _, text := range data {
+		if _, exists := uniqueStringMap[text]; !exists {
+			uniqueStringMap[text] = struct{}{}
+			uniqueStringSlice = append(uniqueStringSlice, text)
+		}
+	}
+
+	return uniqueStringSlice
 }

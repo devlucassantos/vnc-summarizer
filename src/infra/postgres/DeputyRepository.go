@@ -32,7 +32,7 @@ func (instance Deputy) CreateDeputy(deputy deputy.Deputy) (*uuid.UUID, error) {
 	var deputyId uuid.UUID
 	deputyParty := deputy.Party()
 	err = postgresConnection.QueryRow(queries.Deputy().Insert(), deputy.Code(), deputy.Cpf(), deputy.Name(),
-		deputy.ElectoralName(), deputy.ImageUrl(), deputyParty.Id()).Scan(&deputyId)
+		deputy.ElectoralName(), deputy.ImageUrl(), deputyParty.Id(), deputy.FederatedUnit()).Scan(&deputyId)
 	if err != nil {
 		log.Errorf("Error registering deputy %d: %s", deputy.Code(), err.Error())
 		return nil, err
@@ -52,7 +52,7 @@ func (instance Deputy) UpdateDeputy(deputy deputy.Deputy) error {
 
 	deputyParty := deputy.Party()
 	_, err = postgresConnection.Exec(queries.Deputy().Update(), deputy.Name(), deputy.ElectoralName(),
-		deputy.ImageUrl(), deputyParty.Id(), deputy.Code())
+		deputy.ImageUrl(), deputyParty.Id(), deputy.FederatedUnit(), deputy.Code())
 	if err != nil {
 		log.Errorf("Error updating deputy %d: %s", deputy.Code(), err.Error())
 		return err
@@ -87,8 +87,6 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		Name(deputyData.Party.Name).
 		Acronym(deputyData.Party.Acronym).
 		ImageUrl(deputyData.Party.ImageUrl).
-		CreatedAt(deputyData.Party.CreatedAt).
-		UpdatedAt(deputyData.Party.UpdatedAt).
 		Build()
 	if err != nil {
 		log.Errorf("Error validating data for party %s of deputy %s: %s", deputyData.Party.Id, deputyData.Id,
@@ -104,8 +102,7 @@ func (instance Deputy) GetDeputyByCode(code int) (*deputy.Deputy, error) {
 		ElectoralName(deputyData.ElectoralName).
 		ImageUrl(deputyData.ImageUrl).
 		Party(*deputyParty).
-		CreatedAt(deputyData.CreatedAt).
-		UpdatedAt(deputyData.UpdatedAt).
+		FederatedUnit(deputyData.FederatedUnit).
 		Build()
 	if err != nil {
 		log.Errorf("Error validating data for deputy %s: %s", deputyData.Id, err.Error())

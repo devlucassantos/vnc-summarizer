@@ -5,7 +5,8 @@ import (
 	"github.com/labstack/gommon/log"
 	"os"
 	"time"
-	"vnc-summarizer/config/diconteiner"
+	"vnc-summarizer/config/dicontainer"
+	"vnc-summarizer/core/services/utils/datetime"
 )
 
 func main() {
@@ -16,16 +17,37 @@ func main() {
 		}
 	}
 
-	backgroundDataService := diconteiner.GetBackgroundDataService()
-	backgroundDataService.RegisterNewPropositions()
+	propositionService := dicontainer.GetPropositionService()
+	newsletterService := dicontainer.GetNewsletterService()
+	votingService := dicontainer.GetVotingService()
+	eventService := dicontainer.GetEventService()
 
-	for range time.NewTicker(time.Hour).C {
-		backgroundDataService.RegisterNewPropositions()
-		timeNow := time.Now()
-		if timeNow.Hour() >= 18 {
-			backgroundDataService.RegisterNewNewsletter(timeNow)
-		} else if timeNow.Hour() < 6 {
-			backgroundDataService.RegisterNewNewsletter(timeNow.AddDate(0, 0, -1))
+	for {
+		startTime, err := datetime.GetCurrentDateTimeInBrazil()
+		if err != nil {
+			log.Fatal("datetime.GetCurrentDateTimeInBrazil(): ", err)
+			return
+		}
+
+		propositionService.RegisterNewPropositions()
+		votingService.RegisterNewVotes()
+		eventService.UpdateEventsOccurringToday()
+		eventService.RegisterNewEvents()
+
+		if startTime.Hour() >= 18 {
+			newsletterService.RegisterNewNewsletter(*startTime)
+		} else if startTime.Hour() < 6 {
+			newsletterService.RegisterNewNewsletter(startTime.AddDate(0, 0, -1))
+		}
+
+		if startTime.Hour() == 7 {
+			eventService.UpdateEventsThatStartedInTheLastThreeMonthsAndHaveNotFinished()
+		}
+
+		elapsedTime := time.Since(*startTime)
+		sleepDuration := time.Hour - elapsedTime
+		if sleepDuration > 0 {
+			time.Sleep(sleepDuration)
 		}
 	}
 }
