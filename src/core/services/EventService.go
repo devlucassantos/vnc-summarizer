@@ -14,6 +14,7 @@ import (
 	"github.com/devlucassantos/vnc-domains/src/domains/voting"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
+	"math"
 	"path"
 	"strings"
 	"time"
@@ -100,15 +101,24 @@ func getCodesOfTheMostRecentEventsRegisteredInTheChamber() ([]int, error) {
 		return nil, err
 	}
 
-	urlOfTheMostRecentEvents := fmt.Sprintf(
-		"https://dadosabertos.camara.leg.br/api/v2/eventos?itens=100&dataInicio=%s&dataFim=%s&ordem=asc&ordenarPor=id",
-		currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
-		currentDateTime.Format("2006-01-02"),
-	)
-	mostRecentEventsReturned, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentEvents)
-	if err != nil {
-		log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
-		return nil, err
+	var mostRecentEventsReturned []map[string]interface{}
+	for page := 1; page < math.MaxInt; page++ {
+		chunkSize := 100
+		urlOfTheMostRecentEvents := fmt.Sprintf(
+			"https://dadosabertos.camara.leg.br/api/v2/eventos?&pagina=%d&itens=%d&dataInicio=%s&ordenarPor=id&ordem=asc",
+			page, chunkSize, currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
+		)
+		mostRecentEvents, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentEvents)
+		if err != nil {
+			log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
+			return nil, err
+		}
+
+		mostRecentEventsReturned = append(mostRecentEventsReturned, mostRecentEvents...)
+
+		if len(mostRecentEvents) < chunkSize {
+			break
+		}
 	}
 
 	eventCodes, err := extractCodesFromEvents(mostRecentEventsReturned)

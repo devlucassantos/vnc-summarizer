@@ -84,15 +84,24 @@ func getCodesOfTheMostRecentPropositionsRegisteredInTheChamber() ([]int, error) 
 		return nil, err
 	}
 
-	urlOfTheMostRecentPropositions := fmt.Sprintf(
-		"https://dadosabertos.camara.leg.br/api/v2/proposicoes?itens=100&dataInicio=%s&dataFim=%s&ordenarPor=id&ordem=asc",
-		currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
-		currentDateTime.Format("2006-01-02"),
-	)
-	mostRecentPropositionsReturned, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentPropositions)
-	if err != nil {
-		log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
-		return nil, err
+	var mostRecentPropositionsReturned []map[string]interface{}
+	for page := 1; page < math.MaxInt; page++ {
+		chunkSize := 100
+		urlOfTheMostRecentPropositions := fmt.Sprintf(
+			"https://dadosabertos.camara.leg.br/api/v2/proposicoes?&pagina=%d&itens=%d&dataApresentacaoInicio=%s&ordenarPor=id&ordem=asc",
+			page, chunkSize, currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
+		)
+		mostRecentPropositions, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentPropositions)
+		if err != nil {
+			log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
+			return nil, err
+		}
+
+		mostRecentPropositionsReturned = append(mostRecentPropositionsReturned, mostRecentPropositions...)
+
+		if len(mostRecentPropositions) < chunkSize {
+			break
+		}
 	}
 
 	propositionCodes, err := extractPropositionCodes(mostRecentPropositionsReturned)
