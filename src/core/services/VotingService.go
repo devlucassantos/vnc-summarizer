@@ -8,7 +8,6 @@ import (
 	"github.com/devlucassantos/vnc-domains/src/domains/voting"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -78,7 +77,7 @@ func getCodesOfTheMostRecentVotesRegisteredInTheChamber() ([]string, error) {
 	}
 
 	var mostRecentVotesReturned []map[string]interface{}
-	for page := 1; page < math.MaxInt; page++ {
+	for page := 1; ; page++ {
 		chunkSize := 100
 		urlOfTheMostRecentVotes := fmt.Sprintf(
 			"https://dadosabertos.camara.leg.br/api/v2/votacoes?&pagina=%d&itens=%d&dataInicio=%s&ordenarPor=id&ordem=asc",

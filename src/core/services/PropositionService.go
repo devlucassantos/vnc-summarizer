@@ -85,7 +85,7 @@ func getCodesOfTheMostRecentPropositionsRegisteredInTheChamber() ([]int, error) 
 	}
 
 	var mostRecentPropositionsReturned []map[string]interface{}
-	for page := 1; page < math.MaxInt; page++ {
+	for page := 1; ; page++ {
 		chunkSize := 100
 		urlOfTheMostRecentPropositions := fmt.Sprintf(
 			"https://dadosabertos.camara.leg.br/api/v2/proposicoes?&pagina=%d&itens=%d&dataApresentacaoInicio=%s&ordenarPor=id&ordem=asc",
