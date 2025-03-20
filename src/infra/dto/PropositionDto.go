@@ -15,4 +15,5 @@ type Proposition struct {
 	SubmittedAt          time.Time `db:"proposition_submitted_at"`
 	ImageUrl             string    `db:"proposition_image_url"`
 	ImageDescription     string    `db:"proposition_image_description"`
+	*PropositionType
 }

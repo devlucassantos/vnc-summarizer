@@ -40,34 +40,64 @@ func (instance Article) GetArticlesByReferenceDate(referenceDate time.Time) ([]a
 	for _, articleData := range articles {
 		articleType, err := articletype.NewBuilder().
 			Id(articleData.ArticleType.Id).
-			Codes(articleData.ArticleType.Codes).
 			Description(articleData.ArticleType.Description).
-			Color(articleData.ArticleType.Color).
+			Codes(articleData.ArticleType.Codes).
 			Build()
 		if err != nil {
-			log.Errorf("Error validating data for article type %s of article %s: %s",
-				articleData.ArticleType.Id, articleData.Id, err.Error())
+			log.Errorf("Error validating data for article type %s of article %s: %s", articleData.ArticleType.Id,
+				articleData.Id, err.Error())
 			return nil, err
 		}
 
-		articleBuilder := article.NewBuilder()
-
-		if articleData.Proposition.Content != "" {
-			articleBuilder.Title(articleData.Proposition.Title).Content(articleData.Proposition.Content)
-		} else if articleData.Voting.Result != "" {
-			articleBuilder.Title(fmt.Sprint("Votação ", articleData.Voting.Code)).
-				Content(articleData.Voting.Result)
-		} else {
-			articleBuilder.Title(articleData.Event.Title).Content(articleData.Event.Description)
-		}
-
-		articleDomain, err := articleBuilder.
+		articleBuilder := article.NewBuilder().
 			Id(articleData.Id).
-			Type(*articleType).
-			Build()
-		if err != nil {
-			log.Errorf("Error validating data for article %s: %s", articleData.Id, err.Error())
-			return nil, err
+			Type(*articleType)
+
+		var articleDomain *article.Article
+		var articleErr error
+		if articleData.Proposition != nil && articleData.Proposition.Id != uuid.Nil {
+			articleSpecificType, err := articletype.NewBuilder().
+				Id(articleData.Proposition.PropositionType.Id).
+				Description(articleData.Proposition.PropositionType.Description).
+				Codes(articleData.Proposition.PropositionType.Codes).
+				Build()
+			if err != nil {
+				log.Errorf("Error validating data for proposition type %s of proposition %s of article %s: %s",
+					articleData.Proposition.PropositionType.Id, articleData.Proposition.Id, articleData.Id, err.Error())
+				return nil, err
+			}
+
+			articleDomain, articleErr = articleBuilder.
+				Title(articleData.Proposition.Title).
+				Content(articleData.Proposition.Content).
+				SpecificType(*articleSpecificType).
+				Build()
+		} else if articleData.Voting != nil && articleData.Voting.Id != uuid.Nil {
+			articleDomain, articleErr = articleBuilder.
+				Title(fmt.Sprint("Votação ", articleData.Voting.Code)).
+				Content(articleData.Voting.Result).
+				Build()
+		} else {
+			articleSpecificType, err := articletype.NewBuilder().
+				Id(articleData.Event.EventType.Id).
+				Description(articleData.Event.EventType.Description).
+				Codes(articleData.Event.EventType.Codes).
+				Build()
+			if err != nil {
+				log.Errorf("Error validating data for event type %s of event %s of article %s: %s",
+					articleData.Event.EventType.Id, articleData.Event.Id, articleData.Id, err.Error())
+				return nil, err
+			}
+
+			articleDomain, articleErr = articleBuilder.
+				Title(articleData.Event.Title).
+				Content(articleData.Event.Description).
+				SpecificType(*articleSpecificType).
+				Build()
+		}
+		if articleErr != nil {
+			log.Errorf("Error validating data for article %s: %s", articleData.Id, articleErr.Error())
+			return nil, articleErr
 		}
 
 		articleSlice = append(articleSlice, *articleDomain)

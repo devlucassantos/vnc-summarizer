@@ -183,8 +183,8 @@ func getMostRelevantArticles(articles []article.Article, maximumNumberOfRelevant
 				break
 			}
 
-			articleType := articleData.Type()
-			if !strings.Contains(articleType.Codes(), "default_option") {
+			articleSpecificType := articleData.SpecificType()
+			if articleSpecificType.IsZero() || !strings.Contains(articleSpecificType.Codes(), "default_option") {
 				mostRelevantArticles = append(mostRelevantArticles, articleData)
 			}
 		}
@@ -195,8 +195,9 @@ func getMostRelevantArticles(articles []article.Article, maximumNumberOfRelevant
 					break
 				}
 
-				articleType := articleData.Type()
-				if strings.Contains(articleType.Codes(), "default_option") {
+				articleSpecificType := articleData.SpecificType()
+				if !articleSpecificType.IsZero() &&
+					strings.Contains(articleSpecificType.Codes(), "default_option") {
 					mostRelevantArticles = append(mostRelevantArticles, articleData)
 				}
 			}
