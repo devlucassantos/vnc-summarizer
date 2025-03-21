@@ -171,7 +171,7 @@ func (instance Proposition) getProposition(code int) (*proposition.Proposition, 
 	propositionData, err := instance.getPropositionDataToRegister(code)
 	if err != nil && !strings.Contains(err.Error(), "no content") {
 		for attempt := 1; attempt <= 3; attempt++ {
-			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
+			waitingTimeInSeconds := int(math.Pow(4, float64(attempt)))
 			log.Warnf("It was not possible to register proposition %d on the %dth attempt, trying again in %d seconds",
 				code, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)

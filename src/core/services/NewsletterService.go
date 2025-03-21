@@ -84,7 +84,7 @@ func (instance Newsletter) RegisterNewNewsletter(referenceDate time.Time) {
 	newsletterData, err := instance.generateNewsletter(articles, referenceDate)
 	if err != nil {
 		for attempt := 1; attempt <= 3; attempt++ {
-			waitingTimeInSeconds := int(math.Pow(5, float64(attempt)))
+			waitingTimeInSeconds := int(math.Pow(4, float64(attempt)))
 			log.Warnf("It was not possible to register newsletter of %s on the %dth attempt, trying again in "+
 				"%d seconds", formattedReferenceDate, attempt, waitingTimeInSeconds)
 			time.Sleep(time.Duration(waitingTimeInSeconds) * time.Second)
