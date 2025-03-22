@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 	"vnc-summarizer/core/services/utils/converters"
 	"vnc-summarizer/core/services/utils/requesters"
 )
@@ -50,7 +51,9 @@ func requestToDallE(prompt, purpose string) (string, error) {
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
 	request.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Minute,
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		log.Error("Error making request to DALL·E: ", err.Error())

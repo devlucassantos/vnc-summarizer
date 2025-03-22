@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 	"vnc-summarizer/core/services/utils/converters"
 	"vnc-summarizer/core/services/utils/requesters"
 )
@@ -33,7 +34,9 @@ func requestToVncPdfContentExtractorApi(pdfUrl string) (string, error) {
 	}
 	request.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Minute,
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		log.Error("Error making request to VNC PDF Content Extractor API: ", err.Error())

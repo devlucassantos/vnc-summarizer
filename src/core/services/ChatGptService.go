@@ -71,7 +71,9 @@ func requestToChatGpt(command, content, purpose string) (string, error) {
 		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
 		request.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{}
+		client := &http.Client{
+			Timeout: time.Minute,
+		}
 		response, err := client.Do(request)
 		if err != nil {
 			log.Error("Error making request to ChatGPT: ", err.Error())
@@ -180,7 +182,9 @@ func requestToChatGptVision(imageUrl string) (string, error) {
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
 	request.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Minute,
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		log.Error("Error making request to ChatGPT Vision: ", err.Error())

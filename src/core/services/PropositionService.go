@@ -20,7 +20,6 @@ import (
 	"vnc-summarizer/core/services/utils/converters"
 	"vnc-summarizer/core/services/utils/datetime"
 	"vnc-summarizer/core/services/utils/requesters"
-	"vnc-summarizer/core/services/utils/validators"
 )
 
 type Proposition struct {
@@ -230,29 +229,25 @@ func (instance Proposition) getPropositionDataToRegister(propositionCode int) (*
 		return nil, err
 	}
 
-	var propositionContentSummary, propositionText, originalTextMimeType string
-	if validators.IsUrlValid(originalTextUrl) {
-		propositionText, originalTextMimeType, err = getPropositionContent(propositionCode, originalTextUrl)
-		if err != nil {
-			log.Error("getPropositionContent(): ", err.Error())
-			return nil, err
-		}
-
-		chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo " +
-			"para uma revista. O texto produzido deve conter no máximo três parágrafos:"
-		purpose := fmt.Sprint("Summary of the content of proposition ", propositionCode)
-		propositionContentSummary, err = requestToChatGpt(chatGptCommand, propositionText, purpose)
-		if err != nil {
-			log.Error("requestToChatGpt(): ", err.Error())
-			return nil, err
-		}
-	} else {
-		propositionContentSummary = fmt.Sprint(propositionData["ementa"])
+	originalTextUrl, propositionText, originalTextMimeType, err := getPropositionContent(propositionCode,
+		originalTextUrl)
+	if err != nil {
+		log.Error("getPropositionContent(): ", err.Error())
+		return nil, err
 	}
 
-	chatGptCommand := "Gere um título chamativo utilizando uma linguagem simples e direta para a seguinte matéria para " +
+	chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo " +
+		"para uma revista. O texto produzido deve conter no máximo três parágrafos:"
+	purpose := fmt.Sprint("Summary of the content of proposition ", propositionCode)
+	propositionContentSummary, err := requestToChatGpt(chatGptCommand, propositionText, purpose)
+	if err != nil {
+		log.Error("requestToChatGpt(): ", err.Error())
+		return nil, err
+	}
+
+	chatGptCommand = "Gere um título chamativo utilizando uma linguagem simples e direta para a seguinte matéria para " +
 		"uma revista sobre uma proposição política: "
-	purpose := fmt.Sprint("Generating the title of proposition ", propositionCode)
+	purpose = fmt.Sprint("Generating the title of proposition ", propositionCode)
 	propositionTitle, err := requestToChatGpt(chatGptCommand, propositionContentSummary, purpose)
 	if err != nil {
 		log.Error("requestToChatGpt(): ", err.Error())
@@ -334,38 +329,38 @@ func (instance Proposition) getPropositionDataToRegister(propositionCode int) (*
 	return propositionDataToRegister, err
 }
 
-func getPropositionContent(propositionCode int, propositionUrl string) (string, string, error) {
+func getPropositionContent(propositionCode int, propositionUrl string) (string, string, string, error) {
 	log.Info("Extracting content from proposition ", propositionCode)
 
 	propositionContent, err := requestToVncPdfContentExtractorApi(propositionUrl)
 	if err != nil && !strings.Contains(err.Error(), "Is this really a PDF?") {
 		log.Error("requestToVncPdfContentExtractorApi(): ", err.Error())
-		return "", "", err
+		return "", "", "", err
 	} else if err == nil && propositionContent == "" {
 		errorMessage := fmt.Sprintf("The file of the original text of the proposition %d is not supported: %s",
 			propositionCode, propositionUrl)
 		log.Error(errorMessage)
-		return "", "", errors.New(errorMessage)
+		return "", "", "", errors.New(errorMessage)
 	} else if propositionContent != "" {
 		propositionMimeType := "application/pdf"
-		return propositionContent, propositionMimeType, nil
+		return propositionUrl, propositionContent, propositionMimeType, nil
 	}
 
-	propositionContent, err = getPropositionContentDirectly(propositionUrl)
+	propositionUrl, propositionContent, err = getPropositionContentDirectly(propositionUrl)
 	if err != nil {
 		log.Error("getPropositionContentDirectly(): ", err.Error())
-		return "", "", err
+		return "", "", "", err
 	}
 	propositionMimeType := "text/html"
 
-	return propositionContent, propositionMimeType, nil
+	return propositionUrl, propositionContent, propositionMimeType, nil
 }
 
-func getPropositionContentDirectly(propositionUrl string) (string, error) {
+func getPropositionContentDirectly(propositionUrl string) (string, string, error) {
 	parsedPropositionUrl, err := url.Parse(propositionUrl)
 	if err != nil {
 		log.Errorf("Error parsing proposition URL %s: %s", propositionUrl, err.Error())
-		return "", err
+		return "", "", err
 	}
 	queryParams := parsedPropositionUrl.Query()
 	propositionContentCode := queryParams.Get("codteor")
@@ -375,13 +370,13 @@ func getPropositionContentDirectly(propositionUrl string) (string, error) {
 	response, err := requesters.GetRequest(propositionUrl)
 	if err != nil {
 		log.Error("requests.GetRequest(): ", err.Error())
-		return "", err
+		return "", "", err
 	}
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		log.Errorf("Error interpreting response to request %s: %s", propositionUrl, err.Error())
-		return "", err
+		return "", "", err
 	}
 	responseBodyAsString := string(responseBody)
 
@@ -389,10 +384,10 @@ func getPropositionContentDirectly(propositionUrl string) (string, error) {
 		errorMessage := fmt.Sprintf("Error making request to get original proposition content directly: "+
 			"[Status: %s; Body: %s]", response.Status, responseBodyAsString)
 		log.Error(errorMessage)
-		return "", errors.New(errorMessage)
+		return "", "", errors.New(errorMessage)
 	}
 
-	return responseBodyAsString, err
+	return propositionUrl, responseBodyAsString, err
 }
 
 func getArticleSpecificType(articleTypeCode string) (string, error) {
