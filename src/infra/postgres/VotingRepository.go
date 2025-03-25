@@ -60,8 +60,9 @@ func (instance Voting) CreateVoting(voting voting.Voting) (*uuid.UUID, error) {
 	}
 
 	var votingId uuid.UUID
-	err = transaction.QueryRow(queries.Voting().Insert(), voting.Code(), voting.Result(), voting.ResultAnnouncedAt(),
-		voting.IsApproved(), legislativeBody.Id(), mainPropositionId, articleId).Scan(&votingId)
+	err = transaction.QueryRow(queries.Voting().Insert(), voting.Code(), voting.Description(), voting.Result(),
+		voting.ResultAnnouncedAt(), voting.IsApproved(), legislativeBody.Id(), mainPropositionId, articleId).
+		Scan(&votingId)
 	if err != nil {
 		log.Errorf("Error registering voting %s: %s", voting.Code(), err.Error())
 		return nil, err
@@ -122,6 +123,7 @@ func (instance Voting) GetVotingByCode(code string) (*voting.Voting, error) {
 	votingDomain, err := voting.NewBuilder().
 		Id(votingData.Id).
 		Code(votingData.Code).
+		Description(votingData.Description).
 		Result(votingData.Result).
 		ResultAnnouncedAt(votingData.ResultAnnouncedAt).
 		IsApproved(votingData.IsApproved).
@@ -159,6 +161,7 @@ func (instance Voting) GetVotesByCodes(codes []string) ([]voting.Voting, error) 
 		votingDomain, err := voting.NewBuilder().
 			Id(votingDto.Id).
 			Code(votingDto.Code).
+			Description(votingDto.Description).
 			Result(votingDto.Result).
 			ResultAnnouncedAt(votingDto.ResultAnnouncedAt).
 			IsApproved(votingDto.IsApproved).

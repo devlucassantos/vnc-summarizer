@@ -40,6 +40,9 @@ func (instance Voting) RegisterNewVotes() {
 	if err != nil {
 		log.Error("getCodesOfTheMostRecentVotesRegisteredInTheChamber(): ", err.Error())
 		return
+	} else if codesOfTheMostRecentVotesReturned == nil {
+		log.Info("No new votes were identified for registration")
+		return
 	}
 
 	votesRegistered, err := instance.votingRepository.GetVotesByCodes(codesOfTheMostRecentVotesReturned)
@@ -161,18 +164,16 @@ func (instance Voting) getVotingDataToRegister(code string) (*voting.Voting, err
 		return nil, err
 	}
 
+	result := fmt.Sprint(votingData["descricao"])
+
+	var resultAnnouncedAt time.Time
 	resultAnnouncedAtAsString := fmt.Sprint(votingData["dataHoraRegistro"])
-	if resultAnnouncedAtAsString == "<nil>" {
-		mainPropositionData, err := getMainPropositionData(votingData["ultimaApresentacaoProposicao"])
-		if err != nil {
-			log.Error("getMainPropositionData(): ", err.Error())
-			return nil, err
-		}
-
-		resultAnnouncedAtAsString = fmt.Sprint(mainPropositionData["dataHoraRegistro"])
+	if resultAnnouncedAtAsString != "<nil>" {
+		resultAnnouncedAt, err = time.Parse("2006-01-02T15:04:05", resultAnnouncedAtAsString)
+	} else {
+		resultAnnouncedAtAsString = fmt.Sprint(votingData["data"])
+		resultAnnouncedAt, err = time.Parse("2006-01-02", resultAnnouncedAtAsString)
 	}
-
-	resultAnnouncedAt, err := time.Parse("2006-01-02T15:04:05", resultAnnouncedAtAsString)
 	if err != nil {
 		log.Errorf("Error converting date and time of result announcement of voting %s: %s", code,
 			err.Error())
@@ -217,6 +218,34 @@ func (instance Voting) getVotingDataToRegister(code string) (*voting.Voting, err
 		return nil, err
 	}
 
+	numberOfArticles := 1
+	var contentOfArticles string
+	contentOfArticles += fmt.Sprintf("%dª matéria:\nTítulo: %s\n\nConteúdo: %s\n\n", numberOfArticles,
+		mainProposition.Title(), mainProposition.Content())
+	for index := 0; index < len(relatedPropositions) && numberOfArticles < 10; index++ {
+		numberOfArticles++
+		contentOfArticles += fmt.Sprintf("%dª matéria:\nTítulo: %s\n\nConteúdo: %s\n\n", numberOfArticles,
+			relatedPropositions[index].Title(), relatedPropositions[index].Content())
+	}
+	for index := 0; index < len(affectedPropositions) && numberOfArticles < 10; index++ {
+		numberOfArticles++
+		contentOfArticles += fmt.Sprintf("%dª matéria:\nTítulo: %s\n\nConteúdo: %s\n\n", numberOfArticles,
+			affectedPropositions[index].Title(), affectedPropositions[index].Content())
+	}
+
+	chatGptCommand := fmt.Sprintf("Gere uma descrição para ser usada em uma matéria jornalistica sobre uma "+
+		"votação legislativa que teve como resultado '%s'. Essa votação foi relacionada ao conjunto de matérias abaixo, "+
+		"que são sobre proposições legislativas. É importante que a descrição seja curta e chamativa, falando sobre o "+
+		"máximo de matérias possíveis, correlacionando os temas e o resultado, utilizando uma linguagem simples e "+
+		"direta, não possuindo mais do que 500 caracteres e sem referenciar quando ocorreu a votação. Matérias:\n\n",
+		result)
+	purpose := fmt.Sprint("Generating the description for voting ", code)
+	description, err := requestToChatGpt(chatGptCommand, contentOfArticles, purpose)
+	if err != nil {
+		log.Error("requestToChatGpt(): ", err.Error())
+		return nil, err
+	}
+
 	articleTypeCode := "voting"
 	articleType, err := instance.articleTypeRepository.GetArticleTypeByCode(articleTypeCode)
 	if err != nil {
@@ -232,6 +261,7 @@ func (instance Voting) getVotingDataToRegister(code string) (*voting.Voting, err
 
 	votingBuilder := voting.NewBuilder().
 		Code(code).
+		Description(description).
 		Result(fmt.Sprint(votingData["descricao"])).
 		ResultAnnouncedAt(resultAnnouncedAt).
 		IsApproved(isApproved).

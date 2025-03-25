@@ -43,7 +43,7 @@ func (articleSelectSqlManager) ByReferenceDate() string {
 				COALESCE(proposition_type.description, '') AS proposition_type_description,
 				COALESCE(proposition_type.codes, '') AS proposition_type_codes,
 				COALESCE(voting.id, '00000000-0000-0000-0000-000000000000') AS voting_id,
-				COALESCE(voting.code, '') AS voting_code, COALESCE(voting.result, '') AS voting_result,
+				COALESCE(voting.code, '') AS voting_code, COALESCE(voting.description, '') AS voting_description,
 				COALESCE(event.id, '00000000-0000-0000-0000-000000000000') AS event_id,
 				COALESCE(event.title, '') AS event_title, COALESCE(event.description, '') AS event_description,
 				COALESCE(event_type.id, '00000000-0000-0000-0000-000000000000') AS event_type_id,

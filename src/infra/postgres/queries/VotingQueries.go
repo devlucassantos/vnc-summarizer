@@ -12,9 +12,9 @@ func Voting() *votingSqlManager {
 }
 
 func (votingSqlManager) Insert() string {
-	return `INSERT INTO voting(code, result, result_announced_at, is_approved, legislative_body_id, main_proposition_id,
-            	article_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+	return `INSERT INTO voting(code, description, result, result_announced_at, is_approved, legislative_body_id,
+            	main_proposition_id, article_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`
 }
 
@@ -25,7 +25,7 @@ func (votingSqlManager) Select() *votingSelectSqlManager {
 }
 
 func (votingSelectSqlManager) ByCode() string {
-	return `SELECT id AS voting_id, code AS voting_code, result AS voting_result,
+	return `SELECT id AS voting_id, code AS voting_code, description AS voting_description, result AS voting_result,
        			result_announced_at AS voting_result_announced_at, is_approved AS voting_is_approved
 			FROM voting
 			WHERE active = true AND code = $1`
@@ -37,8 +37,9 @@ func (votingSelectSqlManager) ByCodes(numberOfVotes int) string {
 		parameters = append(parameters, fmt.Sprintf("$%d", i))
 	}
 
-	return fmt.Sprintf(`SELECT id AS voting_id, code AS voting_code, result AS voting_result,
-				result_announced_at AS voting_result_announced_at, is_approved AS voting_is_approved
+	return fmt.Sprintf(`SELECT id AS voting_id, code AS voting_code, description AS voting_description,
+				result AS voting_result, result_announced_at AS voting_result_announced_at,
+				is_approved AS voting_is_approved
 			FROM voting
 			WHERE active = true AND code IN (%s)`, strings.Join(parameters, ","))
 }

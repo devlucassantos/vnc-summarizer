@@ -75,7 +75,7 @@ func (instance Article) GetArticlesByReferenceDate(referenceDate time.Time) ([]a
 		} else if articleData.Voting != nil && articleData.Voting.Id != uuid.Nil {
 			articleDomain, articleErr = articleBuilder.
 				Title(fmt.Sprint("Votação ", articleData.Voting.Code)).
-				Content(articleData.Voting.Result).
+				Content(articleData.Voting.Description).
 				Build()
 		} else {
 			articleSpecificType, err := articletype.NewBuilder().
@@ -142,7 +142,7 @@ func (instance Article) GetNewsletterArticlesByNewsletterId(newsletterId uuid.UU
 			articleBuilder.Title(articleData.Proposition.Title).Content(articleData.Proposition.Content)
 		} else if articleData.Voting.Id != uuid.Nil {
 			articleBuilder.Title(fmt.Sprint("Votação ", articleData.Voting.Code)).
-				Content(articleData.Voting.Result)
+				Content(articleData.Voting.Description)
 		} else if articleData.Event.Id != uuid.Nil {
 			articleBuilder.Title(articleData.Event.Title).Content(articleData.Event.Description)
 		}

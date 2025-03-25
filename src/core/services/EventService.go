@@ -61,6 +61,9 @@ func (instance Event) RegisterNewEvents() {
 	if err != nil {
 		log.Error("getCodesOfTheMostRecentEventsRegisteredInTheChamber(): ", err.Error())
 		return
+	} else if codesOfTheMostRecentEventsReturned == nil {
+		log.Info("No new events were identified for registration")
+		return
 	}
 
 	var eventsRegistered []event.Event
@@ -104,7 +107,7 @@ func getCodesOfTheMostRecentEventsRegisteredInTheChamber() ([]int, error) {
 	for page := 1; ; page++ {
 		chunkSize := 100
 		urlOfTheMostRecentEvents := fmt.Sprintf(
-			"https://dadosabertos.camara.leg.br/api/v2/eventos?&pagina=%d&itens=%d&dataInicio=%s&ordenarPor=id&ordem=asc",
+			"https://dadosabertos.camara.leg.br/api/v2/eventos?pagina=%d&itens=%d&dataInicio=%s&ordenarPor=id&ordem=asc",
 			page, chunkSize, currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
 		)
 		mostRecentEvents, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentEvents)

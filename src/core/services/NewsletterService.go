@@ -139,8 +139,8 @@ func (instance Newsletter) generateNewsletter(articles []article.Article, refere
 
 	chatGptCommand := "Gere uma descrição para ser usada em um boletim sobre o conjunto de matérias políticas abaixo. " +
 		"É importante que a descrição seja curta e chamativa, falando sobre o máximo de matérias possíveis, " +
-		"correlacionando os temas e utilizando uma linguagem simples e direta. Não deve ter mais do que 500 " +
-		"caracteres e a frequência em que o boletim é disponibilizado não precisa ser mencionada. Matérias:\n\n"
+		"correlacionando os temas, utilizando uma linguagem simples e direta, não possuindo mais do que 500 " +
+		"caracteres e sem referenciar a frequência em que o boletim é disponibilizado. Matérias:\n\n"
 	purpose := fmt.Sprint("Generating the newsletter description of ", formattedReferenceDate)
 	description, err := requestToChatGpt(chatGptCommand, contentOfArticles, purpose)
 	if err != nil {

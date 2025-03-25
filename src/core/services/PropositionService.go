@@ -45,6 +45,9 @@ func (instance Proposition) RegisterNewPropositions() {
 	if err != nil {
 		log.Error("getCodesOfTheMostRecentPropositionsRegisteredInTheChamber(): ", err.Error())
 		return
+	} else if codesOfTheMostRecentPropositionsReturned == nil {
+		log.Info("No new propositions were identified for registration")
+		return
 	}
 
 	registeredPropositions, err := instance.propositionRepository.
@@ -87,7 +90,7 @@ func getCodesOfTheMostRecentPropositionsRegisteredInTheChamber() ([]int, error) 
 	for page := 1; ; page++ {
 		chunkSize := 100
 		urlOfTheMostRecentPropositions := fmt.Sprintf(
-			"https://dadosabertos.camara.leg.br/api/v2/proposicoes?&pagina=%d&itens=%d&dataApresentacaoInicio=%s&ordenarPor=id&ordem=asc",
+			"https://dadosabertos.camara.leg.br/api/v2/proposicoes?pagina=%d&itens=%d&dataApresentacaoInicio=%s&ordenarPor=id&ordem=asc",
 			page, chunkSize, currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
 		)
 		mostRecentPropositions, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentPropositions)

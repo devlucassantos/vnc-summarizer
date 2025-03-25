@@ -23,7 +23,7 @@ func (newsletterArticleSelectSqlManager) ByNewsletterId() string {
 				article_type.codes AS article_type_codes, article_type.color AS article_type_color,
 				COALESCE(proposition.title, '') AS proposition_title,
 				COALESCE(proposition.content, '') AS proposition_content,
-				COALESCE(voting.code, '') AS voting_code, COALESCE(voting.result, '') AS voting_result,
+				COALESCE(voting.code, '') AS voting_code, COALESCE(voting.description, '') AS voting_description,
 				COALESCE(event.title, '') AS event_title, COALESCE(event.description, '') AS event_description
 			FROM newsletter_article
 				INNER JOIN article ON article.id = newsletter_article.article_id
