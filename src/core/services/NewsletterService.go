@@ -8,18 +8,21 @@ import (
 	"math"
 	"strings"
 	"time"
-	"vnc-summarizer/core/interfaces/repositories"
+	"vnc-summarizer/core/interfaces/chatgpt"
+	"vnc-summarizer/core/interfaces/postgres"
 )
 
 type Newsletter struct {
-	newsletterRepository  repositories.Newsletter
-	articleTypeRepository repositories.ArticleType
-	articleRepository     repositories.Article
+	chatGptApi            chatgpt.ChatGpt
+	newsletterRepository  postgres.Newsletter
+	articleTypeRepository postgres.ArticleType
+	articleRepository     postgres.Article
 }
 
-func NewNewsletterService(newsletterRepository repositories.Newsletter, articleTypeRepository repositories.ArticleType,
-	articleRepository repositories.Article) *Newsletter {
+func NewNewsletterService(chatGptApi chatgpt.ChatGpt, newsletterRepository postgres.Newsletter,
+	articleTypeRepository postgres.ArticleType, articleRepository postgres.Article) *Newsletter {
 	return &Newsletter{
+		chatGptApi:            chatGptApi,
 		newsletterRepository:  newsletterRepository,
 		articleTypeRepository: articleTypeRepository,
 		articleRepository:     articleRepository,
@@ -142,9 +145,9 @@ func (instance Newsletter) generateNewsletter(articles []article.Article, refere
 		"correlacionando os temas, utilizando uma linguagem simples e direta, não possuindo mais do que 500 " +
 		"caracteres e sem referenciar a frequência em que o boletim é disponibilizado. Matérias:\n\n"
 	purpose := fmt.Sprint("Generating the newsletter description of ", formattedReferenceDate)
-	description, err := requestToChatGpt(chatGptCommand, contentOfArticles, purpose)
+	description, err := instance.chatGptApi.MakeRequest(chatGptCommand, contentOfArticles, purpose)
 	if err != nil {
-		log.Error("requestToChatGpt(): ", err.Error())
+		log.Error("chatGptApi.MakeRequest(): ", err.Error())
 		return nil, err
 	}
 

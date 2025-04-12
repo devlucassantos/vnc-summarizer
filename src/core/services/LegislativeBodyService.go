@@ -6,29 +6,30 @@ import (
 	"github.com/devlucassantos/vnc-domains/src/domains/legislativebodytype"
 	"github.com/google/uuid"
 	"github.com/labstack/gommon/log"
-	"vnc-summarizer/core/interfaces/repositories"
-	"vnc-summarizer/core/services/utils/converters"
-	"vnc-summarizer/core/services/utils/requesters"
+	"vnc-summarizer/core/interfaces/chamber"
+	"vnc-summarizer/core/interfaces/postgres"
+	"vnc-summarizer/utils/converters"
 )
 
 type LegislativeBody struct {
-	legislativeBodyRepository     repositories.LegislativeBody
-	legislativeBodyTypeRepository repositories.LegislativeBodyType
+	chamberApi                    chamber.Chamber
+	legislativeBodyRepository     postgres.LegislativeBody
+	legislativeBodyTypeRepository postgres.LegislativeBodyType
 }
 
-func NewLegislativeBodyService(legislativeBodyRepository repositories.LegislativeBody,
-	legislativeBodyTypeRepository repositories.LegislativeBodyType) *LegislativeBody {
+func NewLegislativeBodyService(chamberApi chamber.Chamber, legislativeBodyRepository postgres.LegislativeBody,
+	legislativeBodyTypeRepository postgres.LegislativeBodyType) *LegislativeBody {
 	return &LegislativeBody{
+		chamberApi:                    chamberApi,
 		legislativeBodyRepository:     legislativeBodyRepository,
 		legislativeBodyTypeRepository: legislativeBodyTypeRepository,
 	}
 }
 
 func (instance LegislativeBody) RegisterNewLegislativeBodyByCode(code int) (*uuid.UUID, error) {
-	legislativeBodyUrl := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/orgaos/", code)
-	legislativeBodyData, err := requesters.GetDataObjectFromUrl(legislativeBodyUrl)
+	legislativeBodyData, err := instance.chamberApi.GetLegislativeBodyByCode(code)
 	if err != nil {
-		log.Error("requests.GetDataObjectFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetLegislativeBodyByCode(): ", err.Error())
 		return nil, err
 	}
 
@@ -73,15 +74,14 @@ func (instance LegislativeBody) getLegislativeBodyTypeDataByCode(code int) (*leg
 	}
 
 	if legislativeBodyType == nil {
-		urlOfLegislativeBodyTypes := "https://dadosabertos.camara.leg.br/api/v2/referencias/tiposOrgao"
-		legislativeBodyTypeSlice, err := requesters.GetDataSliceFromUrl(urlOfLegislativeBodyTypes)
+		legislativeBodyTypes, err := instance.chamberApi.GetLegislativeBodyTypes()
 		if err != nil {
-			log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
+			log.Error("chamberApi.GetLegislativeBodyTypes(): ", err.Error())
 			return nil, err
 		}
 
 		var legislativeBodyTypeData map[string]interface{}
-		for _, legislativeBodyTypeMap := range legislativeBodyTypeSlice {
+		for _, legislativeBodyTypeMap := range legislativeBodyTypes {
 			if fmt.Sprint(legislativeBodyTypeMap["cod"]) == fmt.Sprint(code) {
 				legislativeBodyTypeData = legislativeBodyTypeMap
 				break

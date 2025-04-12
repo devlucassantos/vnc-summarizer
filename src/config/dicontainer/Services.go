@@ -6,7 +6,7 @@ import (
 )
 
 func GetDeputyService() interfaces.Deputy {
-	return services.NewDeputyService(GetDeputyPostgresRepository(), GetPartyPostgresRepository())
+	return services.NewDeputyService(GetChamberApi(), GetDeputyPostgresRepository(), GetPartyPostgresRepository())
 }
 
 func GetExternalAuthorService() interfaces.ExternalAuthor {
@@ -19,27 +19,29 @@ func GetAuthorService() interfaces.Author {
 }
 
 func GetPropositionService() interfaces.Proposition {
-	return services.NewPropositionService(GetPropositionPostgresRepository(), GetPropositionTypePostgresRepository(),
-		GetArticleTypePostgresRepository(), GetAuthorService())
+	return services.NewPropositionService(GetAuthorService(), GetChamberApi(), GetChatGptApi(), GetDallEApi(),
+		GetVncPdfContentExtractorApi(), GetAwsS3(), GetPropositionPostgresRepository(),
+		GetPropositionTypePostgresRepository(), GetArticleTypePostgresRepository())
 }
 
 func GetLegislativeBodyService() interfaces.LegislativeBody {
-	return services.NewLegislativeBodyService(GetLegislativeBodyPostgresRepository(),
+	return services.NewLegislativeBodyService(GetChamberApi(), GetLegislativeBodyPostgresRepository(),
 		GetLegislativeBodyTypePostgresRepository())
 }
 
 func GetVotingService() interfaces.Voting {
-	return services.NewVotingService(GetVotingPostgresRepository(), GetArticleTypePostgresRepository(),
-		GetLegislativeBodyService(), GetPropositionService())
+	return services.NewVotingService(GetChamberApi(), GetChatGptApi(), GetVotingPostgresRepository(),
+		GetArticleTypePostgresRepository(), GetLegislativeBodyService(), GetPropositionService())
 }
 
 func GetEventService() interfaces.Event {
-	return services.NewEventService(GetEventPostgresRepository(), GetArticleTypePostgresRepository(),
-		GetEventTypePostgresRepository(), GetEventSituationPostgresRepository(), GetAgendaItemRegimeRepository(),
-		GetDeputyService(), GetLegislativeBodyService(), GetPropositionService(), GetVotingService())
+	return services.NewEventService(GetDeputyService(), GetLegislativeBodyService(), GetPropositionService(),
+		GetVotingService(), GetChamberApi(), GetChatGptApi(), GetEventPostgresRepository(),
+		GetArticleTypePostgresRepository(), GetEventTypePostgresRepository(), GetEventSituationPostgresRepository(),
+		GetAgendaItemRegimeRepository())
 }
 
 func GetNewsletterService() interfaces.Newsletter {
-	return services.NewNewsletterService(GetNewsletterPostgresRepository(), GetArticleTypePostgresRepository(),
-		GetArticlePostgresRepository())
+	return services.NewNewsletterService(GetChatGptApi(), GetNewsletterPostgresRepository(),
+		GetArticleTypePostgresRepository(), GetArticlePostgresRepository())
 }

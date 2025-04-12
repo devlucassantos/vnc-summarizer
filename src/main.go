@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 	"vnc-summarizer/config/dicontainer"
-	"vnc-summarizer/core/services/utils/datetime"
+	"vnc-summarizer/utils/datetime"
 )
 
 func main() {

@@ -7,8 +7,8 @@ import (
 	"github.com/labstack/gommon/log"
 	"sort"
 	"vnc-summarizer/core/interfaces/services"
-	"vnc-summarizer/core/services/utils/converters"
-	"vnc-summarizer/core/services/utils/requesters"
+	"vnc-summarizer/utils/converters"
+	"vnc-summarizer/utils/requesters"
 )
 
 type Author struct {

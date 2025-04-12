@@ -7,16 +7,16 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"strings"
-	"vnc-summarizer/core/interfaces/repositories"
+	"vnc-summarizer/core/interfaces/postgres"
 )
 
 type ExternalAuthor struct {
-	externalAuthorRepository     repositories.ExternalAuthor
-	externalAuthorTypeRepository repositories.ExternalAuthorType
+	externalAuthorRepository     postgres.ExternalAuthor
+	externalAuthorTypeRepository postgres.ExternalAuthorType
 }
 
-func NewExternalAuthorService(externalAuthorRepository repositories.ExternalAuthor,
-	externalAuthorTypeRepository repositories.ExternalAuthorType) *ExternalAuthor {
+func NewExternalAuthorService(externalAuthorRepository postgres.ExternalAuthor,
+	externalAuthorTypeRepository postgres.ExternalAuthorType) *ExternalAuthor {
 	return &ExternalAuthor{
 		externalAuthorRepository:     externalAuthorRepository,
 		externalAuthorTypeRepository: externalAuthorTypeRepository,

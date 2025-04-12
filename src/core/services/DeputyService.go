@@ -9,19 +9,22 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"strings"
-	"vnc-summarizer/core/interfaces/repositories"
-	"vnc-summarizer/core/services/utils/converters"
-	"vnc-summarizer/core/services/utils/replacers"
-	"vnc-summarizer/core/services/utils/requesters"
+	"vnc-summarizer/core/interfaces/chamber"
+	"vnc-summarizer/core/interfaces/postgres"
+	"vnc-summarizer/utils/converters"
+	"vnc-summarizer/utils/replacers"
+	"vnc-summarizer/utils/requesters"
 )
 
 type Deputy struct {
-	deputyRepository repositories.Deputy
-	partyRepository  repositories.Party
+	chamberApi       chamber.Chamber
+	deputyRepository postgres.Deputy
+	partyRepository  postgres.Party
 }
 
-func NewDeputyService(deputyRepository repositories.Deputy, partyRepository repositories.Party) *Deputy {
+func NewDeputyService(chamberApi chamber.Chamber, deputyRepository postgres.Deputy, partyRepository postgres.Party) *Deputy {
 	return &Deputy{
+		chamberApi:       chamberApi,
 		deputyRepository: deputyRepository,
 		partyRepository:  partyRepository,
 	}
@@ -51,16 +54,14 @@ func (instance Deputy) GetDeputyFromDeputyData(deputyData map[string]interface{}
 	partyAcronym = strings.ToUpper(strings.Trim(partyAcronym, "*"))
 	partyAcronym = replacers.RemoveSpellingAccents(partyAcronym)
 
-	urlOfExternalPartyData := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/partidos?sigla=",
-		partyAcronym)
-	parties, err := requesters.GetDataSliceFromUrl(urlOfExternalPartyData)
+	partyData, err := instance.chamberApi.GetPartyByAcronym(partyAcronym)
 	if err != nil {
-		log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetPartyByAcronym(): ", err.Error())
 		return nil, err
 	}
 
-	partyUrl := fmt.Sprint(parties[0]["uri"])
-	partyData, err := requesters.GetDataObjectFromUrl(partyUrl)
+	partyUrl := fmt.Sprint(partyData["uri"])
+	partyData, err = requesters.GetDataObjectFromUrl(partyUrl)
 	if err != nil {
 		log.Error("getDataObjectFromUrl(): ", err.Error())
 		return nil, err

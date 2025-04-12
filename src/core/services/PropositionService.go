@@ -9,39 +9,53 @@ import (
 	"github.com/labstack/gommon/log"
 	"io"
 	"math"
-	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"vnc-summarizer/core/interfaces/repositories"
+	"vnc-summarizer/core/interfaces/chamber"
+	"vnc-summarizer/core/interfaces/chatgpt"
+	"vnc-summarizer/core/interfaces/dalle"
+	"vnc-summarizer/core/interfaces/pdfcontentextractor"
+	"vnc-summarizer/core/interfaces/postgres"
+	"vnc-summarizer/core/interfaces/s3"
 	"vnc-summarizer/core/interfaces/services"
-	"vnc-summarizer/core/services/utils/converters"
-	"vnc-summarizer/core/services/utils/datetime"
-	"vnc-summarizer/core/services/utils/requesters"
+	"vnc-summarizer/utils/converters"
+	"vnc-summarizer/utils/datetime"
+	"vnc-summarizer/utils/requesters"
 )
 
 type Proposition struct {
-	propositionRepository     repositories.Proposition
-	propositionTypeRepository repositories.PropositionType
-	articleTypeRepository     repositories.ArticleType
 	authorService             services.Author
+	chamberApi                chamber.Chamber
+	chatGptApi                chatgpt.ChatGpt
+	dallEApi                  dalle.DallE
+	vncPdfContentExtractor    pdfcontentextractor.VncPdfContentExtractor
+	awsS3Api                  s3.AwsS3
+	propositionRepository     postgres.Proposition
+	propositionTypeRepository postgres.PropositionType
+	articleTypeRepository     postgres.ArticleType
 }
 
-func NewPropositionService(propositionRepository repositories.Proposition,
-	propositionTypeRepository repositories.PropositionType, articleTypeRepository repositories.ArticleType,
-	author services.Author) *Proposition {
+func NewPropositionService(authorService services.Author, chamberApi chamber.Chamber,
+	chatGptApi chatgpt.ChatGpt, dallEApi dalle.DallE, vncPdfContentExtractor pdfcontentextractor.VncPdfContentExtractor,
+	awsS3Api s3.AwsS3, propositionRepository postgres.Proposition, propositionTypeRepository postgres.PropositionType,
+	articleTypeRepository postgres.ArticleType) *Proposition {
 	return &Proposition{
+		authorService:             authorService,
+		chamberApi:                chamberApi,
+		chatGptApi:                chatGptApi,
+		dallEApi:                  dallEApi,
+		vncPdfContentExtractor:    vncPdfContentExtractor,
+		awsS3Api:                  awsS3Api,
 		propositionRepository:     propositionRepository,
 		propositionTypeRepository: propositionTypeRepository,
 		articleTypeRepository:     articleTypeRepository,
-		authorService:             author,
 	}
 }
 
 func (instance Proposition) RegisterNewPropositions() {
-	codesOfTheMostRecentPropositionsReturned, err := getCodesOfTheMostRecentPropositionsRegisteredInTheChamber()
+	codesOfTheMostRecentPropositionsReturned, err := instance.getCodesOfTheMostRecentPropositionsRegisteredInTheChamber()
 	if err != nil {
 		log.Error("getCodesOfTheMostRecentPropositionsRegisteredInTheChamber(): ", err.Error())
 		return
@@ -77,36 +91,16 @@ func (instance Proposition) RegisterNewPropositions() {
 	return
 }
 
-func getCodesOfTheMostRecentPropositionsRegisteredInTheChamber() ([]int, error) {
+func (instance Proposition) getCodesOfTheMostRecentPropositionsRegisteredInTheChamber() ([]int, error) {
 	log.Info("Starting the search for the most recent propositions")
 
-	currentDateTime, err := datetime.GetCurrentDateTimeInBrazil()
+	mostRecentPropositions, err := instance.chamberApi.GetMostRecentPropositions()
 	if err != nil {
-		log.Error("datetime.GetCurrentDateTimeInBrazil(): ", err)
+		log.Error("chamberApi.GetMostRecentPropositions(): ", err.Error())
 		return nil, err
 	}
 
-	var mostRecentPropositionsReturned []map[string]interface{}
-	for page := 1; ; page++ {
-		chunkSize := 100
-		urlOfTheMostRecentPropositions := fmt.Sprintf(
-			"https://dadosabertos.camara.leg.br/api/v2/proposicoes?pagina=%d&itens=%d&dataApresentacaoInicio=%s&ordenarPor=id&ordem=asc",
-			page, chunkSize, currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
-		)
-		mostRecentPropositions, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentPropositions)
-		if err != nil {
-			log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
-			return nil, err
-		}
-
-		mostRecentPropositionsReturned = append(mostRecentPropositionsReturned, mostRecentPropositions...)
-
-		if len(mostRecentPropositions) < chunkSize {
-			break
-		}
-	}
-
-	propositionCodes, err := extractPropositionCodes(mostRecentPropositionsReturned)
+	propositionCodes, err := extractPropositionCodes(mostRecentPropositions)
 	if err != nil {
 		log.Error("extractPropositionCodes(): ", err.Error())
 		return nil, err
@@ -196,10 +190,9 @@ func (instance Proposition) getProposition(code int) (*proposition.Proposition, 
 }
 
 func (instance Proposition) getPropositionDataToRegister(propositionCode int) (*proposition.Proposition, error) {
-	propositionUrl := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/proposicoes/", propositionCode)
-	propositionData, err := requesters.GetDataObjectFromUrl(propositionUrl)
+	propositionData, err := instance.chamberApi.GetPropositionByCode(propositionCode)
 	if err != nil {
-		log.Error("requests.GetDataObjectFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetPropositionByCode(): ", err.Error())
 		return nil, err
 	}
 
@@ -226,13 +219,13 @@ func (instance Proposition) getPropositionDataToRegister(propositionCode int) (*
 		return nil, err
 	}
 
-	specificType, err := getArticleSpecificType(propositionTypeCode)
+	specificType, err := instance.getPropositionSpecificType(propositionTypeCode)
 	if err != nil {
-		log.Error("getArticleSpecificType(): ", err.Error())
+		log.Error("getPropositionSpecificType(): ", err.Error())
 		return nil, err
 	}
 
-	originalTextUrl, propositionText, originalTextMimeType, err := getPropositionContent(propositionCode,
+	originalTextUrl, propositionText, originalTextMimeType, err := instance.getPropositionContent(propositionCode,
 		originalTextUrl)
 	if err != nil {
 		log.Error("getPropositionContent(): ", err.Error())
@@ -242,18 +235,18 @@ func (instance Proposition) getPropositionDataToRegister(propositionCode int) (*
 	chatGptCommand := "Resuma a seguinte proposição política de forma simples e direta, como se estivesse escrevendo " +
 		"para uma revista. O texto produzido deve conter no máximo três parágrafos:"
 	purpose := fmt.Sprint("Summary of the content of proposition ", propositionCode)
-	propositionContentSummary, err := requestToChatGpt(chatGptCommand, propositionText, purpose)
+	propositionContentSummary, err := instance.chatGptApi.MakeRequest(chatGptCommand, propositionText, purpose)
 	if err != nil {
-		log.Error("requestToChatGpt(): ", err.Error())
+		log.Error("chatGptApi.MakeRequest(): ", err.Error())
 		return nil, err
 	}
 
 	chatGptCommand = "Gere um título chamativo utilizando uma linguagem simples e direta para a seguinte matéria para " +
 		"uma revista sobre uma proposição política: "
 	purpose = fmt.Sprint("Generating the title of proposition ", propositionCode)
-	propositionTitle, err := requestToChatGpt(chatGptCommand, propositionContentSummary, purpose)
+	propositionTitle, err := instance.chatGptApi.MakeRequest(chatGptCommand, propositionContentSummary, purpose)
 	if err != nil {
-		log.Error("requestToChatGpt(): ", err.Error())
+		log.Error("chatGptApi.MakeRequest(): ", err.Error())
 		return nil, err
 	}
 	propositionTitle = strings.Trim(propositionTitle, "*\"")
@@ -272,7 +265,7 @@ func (instance Proposition) getPropositionDataToRegister(propositionCode int) (*
 
 	var propositionImageUrl, propositionImageDescription string
 	if !economyModeActive || !strings.Contains(propositionType.Codes(), "default_option") {
-		propositionImageUrl, propositionImageDescription, err = getPropositionImage(propositionCode,
+		propositionImageUrl, propositionImageDescription, err = instance.getPropositionImage(propositionCode,
 			propositionContentSummary)
 		if err != nil {
 			log.Error("getPropositionImage(): ", err.Error())
@@ -332,12 +325,12 @@ func (instance Proposition) getPropositionDataToRegister(propositionCode int) (*
 	return propositionDataToRegister, err
 }
 
-func getPropositionContent(propositionCode int, propositionUrl string) (string, string, string, error) {
+func (instance Proposition) getPropositionContent(propositionCode int, propositionUrl string) (string, string, string, error) {
 	log.Info("Extracting content from proposition ", propositionCode)
 
-	propositionContent, err := requestToVncPdfContentExtractorApi(propositionUrl)
+	propositionContent, err := instance.vncPdfContentExtractor.MakeRequest(propositionUrl)
 	if err != nil && !strings.Contains(err.Error(), "Is this really a PDF?") {
-		log.Error("requestToVncPdfContentExtractorApi(): ", err.Error())
+		log.Error("vncPdfContentExtractor.MakeRequest(): ", err.Error())
 		return "", "", "", err
 	} else if err == nil && propositionContent == "" {
 		errorMessage := fmt.Sprintf("The file of the original text of the proposition %d is not supported: %s",
@@ -349,9 +342,9 @@ func getPropositionContent(propositionCode int, propositionUrl string) (string, 
 		return propositionUrl, propositionContent, propositionMimeType, nil
 	}
 
-	propositionUrl, propositionContent, err = getPropositionContentDirectly(propositionUrl)
+	propositionUrl, propositionContent, err = instance.chamberApi.GetPropositionContentDirectly(propositionUrl)
 	if err != nil {
-		log.Error("getPropositionContentDirectly(): ", err.Error())
+		log.Error("chamberApi.GetPropositionContentDirectly(): ", err.Error())
 		return "", "", "", err
 	}
 	propositionMimeType := "text/html"
@@ -359,74 +352,39 @@ func getPropositionContent(propositionCode int, propositionUrl string) (string, 
 	return propositionUrl, propositionContent, propositionMimeType, nil
 }
 
-func getPropositionContentDirectly(propositionUrl string) (string, string, error) {
-	parsedPropositionUrl, err := url.Parse(propositionUrl)
+func (instance Proposition) getPropositionSpecificType(propositionTypeCode string) (string, error) {
+	propositionTypes, err := instance.chamberApi.GetPropositionTypes()
 	if err != nil {
-		log.Errorf("Error parsing proposition URL %s: %s", propositionUrl, err.Error())
-		return "", "", err
-	}
-	queryParams := parsedPropositionUrl.Query()
-	propositionContentCode := queryParams.Get("codteor")
-
-	propositionUrl = fmt.Sprintf("https://www.camara.leg.br/internet/ordemdodia/integras/%s.htm",
-		propositionContentCode)
-	response, err := requesters.GetRequest(propositionUrl)
-	if err != nil {
-		log.Error("requests.GetRequest(): ", err.Error())
-		return "", "", err
-	}
-
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		log.Errorf("Error interpreting response to request %s: %s", propositionUrl, err.Error())
-		return "", "", err
-	}
-	responseBodyAsString := string(responseBody)
-
-	if response.StatusCode != http.StatusOK {
-		errorMessage := fmt.Sprintf("Error making request to get original proposition content directly: "+
-			"[Status: %s; Body: %s]", response.Status, responseBodyAsString)
-		log.Error(errorMessage)
-		return "", "", errors.New(errorMessage)
-	}
-
-	return propositionUrl, responseBodyAsString, err
-}
-
-func getArticleSpecificType(articleTypeCode string) (string, error) {
-	articleTypesUrl := "https://dadosabertos.camara.leg.br/api/v2/referencias/proposicoes/siglaTipo"
-	articleTypes, err := requesters.GetDataSliceFromUrl(articleTypesUrl)
-	if err != nil {
-		log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetPropositionTypes(): ", err.Error())
 		return "", err
 	}
 
-	var articleSpecificType string
-	for _, articleType := range articleTypes {
-		if fmt.Sprint(articleType["cod"]) == articleTypeCode {
-			articleSpecificType = fmt.Sprintf("%s (%s)", articleType["nome"], articleType["cod"])
+	var propositionSpecificType string
+	for _, propositionType := range propositionTypes {
+		if fmt.Sprint(propositionType["cod"]) == propositionTypeCode {
+			propositionSpecificType = fmt.Sprintf("%s (%s)", propositionType["nome"], propositionType["cod"])
 			break
 		}
 	}
 
-	return articleSpecificType, nil
+	return propositionSpecificType, nil
 }
 
-func getPropositionImage(propositionCode int, propositionContent string) (string, string, error) {
+func (instance Proposition) getPropositionImage(propositionCode int, propositionContent string) (string, string, error) {
 	chatGptCommand := "Gere um prompt para o DALL·E gerar uma imagem para um site jornalistico sobre a seguinte " +
 		"proposição política brasileira. É importante que o prompt esteja de acordo com as políticas do DALL·E e que " +
 		"seja especificado a necessidade de evitar usar textos nessas imagens: "
 	purpose := fmt.Sprint("Generating the prompt for the image of proposition ", propositionCode)
-	prompt, err := requestToChatGpt(chatGptCommand, propositionContent, purpose)
+	prompt, err := instance.chatGptApi.MakeRequest(chatGptCommand, propositionContent, purpose)
 	if err != nil {
-		log.Error("requestToChatGpt(): ", err.Error())
+		log.Error("chatGptApi.MakeRequest(): ", err.Error())
 		return "", "", err
 	}
 
 	purpose = fmt.Sprint("Generating the image of proposition ", propositionCode)
-	dallEImageUrl, err := requestToDallE(prompt, purpose)
+	dallEImageUrl, err := instance.dallEApi.MakeRequest(prompt, purpose)
 	if err != nil {
-		log.Error("requestToDallE(): ", err.Error())
+		log.Error("dallEApi.MakeRequest(): ", err.Error())
 		return "", "", err
 	}
 
@@ -442,15 +400,15 @@ func getPropositionImage(propositionCode int, propositionContent string) (string
 		return "", "", err
 	}
 
-	imageUrl, err := savePropositionImageInAwsS3(propositionCode, image)
+	imageUrl, err := instance.awsS3Api.SavePropositionImage(propositionCode, image)
 	if err != nil {
-		log.Error("savePropositionImageInAwsS3(): ", err.Error())
+		log.Error("awsS3Api.SavePropositionImage(): ", err.Error())
 		return "", "", err
 	}
 
-	imageDescription, err := requestToChatGptVision(imageUrl)
+	imageDescription, err := instance.chatGptApi.MakeRequestToVision(imageUrl)
 	if err != nil {
-		log.Error("requestToChatGptVision(): ", err.Error())
+		log.Error("chatGptApi.MakeRequestToVision(): ", err.Error())
 		return "", "", err
 	}
 

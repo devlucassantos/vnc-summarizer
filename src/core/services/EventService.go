@@ -17,47 +17,52 @@ import (
 	"path"
 	"strings"
 	"time"
-	"vnc-summarizer/core/interfaces/repositories"
+	"vnc-summarizer/core/interfaces/chamber"
+	"vnc-summarizer/core/interfaces/chatgpt"
+	"vnc-summarizer/core/interfaces/postgres"
 	"vnc-summarizer/core/interfaces/services"
-	"vnc-summarizer/core/services/utils/converters"
-	"vnc-summarizer/core/services/utils/datetime"
-	"vnc-summarizer/core/services/utils/requesters"
-	"vnc-summarizer/core/services/utils/splitters"
-	"vnc-summarizer/core/services/utils/validators"
+	"vnc-summarizer/utils/converters"
+	"vnc-summarizer/utils/requesters"
+	"vnc-summarizer/utils/splitters"
+	"vnc-summarizer/utils/validators"
 )
 
 type Event struct {
-	eventRepository            repositories.Event
-	articleTypeRepository      repositories.ArticleType
-	eventTypeRepository        repositories.EventType
-	eventSituationRepository   repositories.EventSituation
-	agendaItemRegimeRepository repositories.AgendaItemRegime
 	deputyService              services.Deputy
 	legislativeBodyService     services.LegislativeBody
 	propositionService         services.Proposition
 	votingService              services.Voting
+	chamberApi                 chamber.Chamber
+	chatGptApi                 chatgpt.ChatGpt
+	eventRepository            postgres.Event
+	articleTypeRepository      postgres.ArticleType
+	eventTypeRepository        postgres.EventType
+	eventSituationRepository   postgres.EventSituation
+	agendaItemRegimeRepository postgres.AgendaItemRegime
 }
 
-func NewEventService(eventRepository repositories.Event, articleTypeRepository repositories.ArticleType,
-	eventTypeRepository repositories.EventType, eventSituationRepository repositories.EventSituation,
-	agendaItemRegimeRepository repositories.AgendaItemRegime, deputyService services.Deputy,
-	legislativeBodyService services.LegislativeBody, propositionService services.Proposition,
-	votingService services.Voting) *Event {
+func NewEventService(deputyService services.Deputy, legislativeBodyService services.LegislativeBody,
+	propositionService services.Proposition, votingService services.Voting, chamberApi chamber.Chamber,
+	chatGptApi chatgpt.ChatGpt, eventRepository postgres.Event, articleTypeRepository postgres.ArticleType,
+	eventTypeRepository postgres.EventType, eventSituationRepository postgres.EventSituation,
+	agendaItemRegimeRepository postgres.AgendaItemRegime) *Event {
 	return &Event{
+		deputyService:              deputyService,
+		legislativeBodyService:     legislativeBodyService,
+		propositionService:         propositionService,
+		votingService:              votingService,
+		chamberApi:                 chamberApi,
+		chatGptApi:                 chatGptApi,
 		eventRepository:            eventRepository,
 		articleTypeRepository:      articleTypeRepository,
 		eventTypeRepository:        eventTypeRepository,
 		eventSituationRepository:   eventSituationRepository,
 		agendaItemRegimeRepository: agendaItemRegimeRepository,
-		deputyService:              deputyService,
-		legislativeBodyService:     legislativeBodyService,
-		propositionService:         propositionService,
-		votingService:              votingService,
 	}
 }
 
 func (instance Event) RegisterNewEvents() {
-	codesOfTheMostRecentEventsReturned, err := getCodesOfTheMostRecentEventsRegisteredInTheChamber()
+	codesOfTheMostRecentEventsReturned, err := instance.getCodesOfTheMostRecentEventsRegisteredInTheChamber()
 	if err != nil {
 		log.Error("getCodesOfTheMostRecentEventsRegisteredInTheChamber(): ", err.Error())
 		return
@@ -66,13 +71,10 @@ func (instance Event) RegisterNewEvents() {
 		return
 	}
 
-	var eventsRegistered []event.Event
-	if codesOfTheMostRecentEventsReturned != nil {
-		eventsRegistered, err = instance.eventRepository.GetEventsByCodes(codesOfTheMostRecentEventsReturned)
-		if err != nil {
-			log.Error("eventRepository.GetEventsByCodes(): ", err.Error())
-			return
-		}
+	eventsRegistered, err := instance.eventRepository.GetEventsByCodes(codesOfTheMostRecentEventsReturned)
+	if err != nil {
+		log.Error("eventRepository.GetEventsByCodes(): ", err.Error())
+		return
 	}
 
 	codesOfTheNewEvents := getCodesOfTheNewEvents(codesOfTheMostRecentEventsReturned, eventsRegistered)
@@ -94,36 +96,16 @@ func (instance Event) RegisterNewEvents() {
 	return
 }
 
-func getCodesOfTheMostRecentEventsRegisteredInTheChamber() ([]int, error) {
+func (instance Event) getCodesOfTheMostRecentEventsRegisteredInTheChamber() ([]int, error) {
 	log.Info("Starting the search for the most recent events")
 
-	currentDateTime, err := datetime.GetCurrentDateTimeInBrazil()
+	mostRecentEvents, err := instance.chamberApi.GetMostRecentEvents()
 	if err != nil {
-		log.Error("datetime.GetCurrentDatetimeInBrazil(): ", err)
+		log.Error("chamberApi.GetMostRecentEvents(): ", err.Error())
 		return nil, err
 	}
 
-	var mostRecentEventsReturned []map[string]interface{}
-	for page := 1; ; page++ {
-		chunkSize := 100
-		urlOfTheMostRecentEvents := fmt.Sprintf(
-			"https://dadosabertos.camara.leg.br/api/v2/eventos?pagina=%d&itens=%d&dataInicio=%s&ordenarPor=id&ordem=asc",
-			page, chunkSize, currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
-		)
-		mostRecentEvents, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentEvents)
-		if err != nil {
-			log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
-			return nil, err
-		}
-
-		mostRecentEventsReturned = append(mostRecentEventsReturned, mostRecentEvents...)
-
-		if len(mostRecentEvents) < chunkSize {
-			break
-		}
-	}
-
-	eventCodes, err := extractCodesFromEvents(mostRecentEventsReturned)
+	eventCodes, err := extractCodesFromEvents(mostRecentEvents)
 	if err != nil {
 		log.Error("extractCodesFromEvents(): ", err.Error())
 		return nil, err
@@ -188,10 +170,9 @@ func (instance Event) RegisterNewEventByCode(code int) (*uuid.UUID, error) {
 func (instance Event) getEventDataToRegister(code int) (*event.Event, error) {
 	log.Info("Starting data search for event ", code)
 
-	eventUrl := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/eventos/", code)
-	eventData, err := requesters.GetDataObjectFromUrl(eventUrl)
+	eventData, err := instance.chamberApi.GetEventByCode(code)
 	if err != nil {
-		log.Error("requests.GetDataObjectFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetEventByCode(): ", err.Error())
 		return nil, err
 	}
 
@@ -218,9 +199,9 @@ func (instance Event) getEventDataToRegister(code int) (*event.Event, error) {
 	}
 
 	eventTypeDescription := fmt.Sprint(eventData["descricaoTipo"])
-	eventType, specificType, err := instance.getEventType(eventTypeDescription)
+	eventType, specificType, err := instance.getEventTypeByDescription(eventTypeDescription)
 	if err != nil {
-		log.Error("getEventType(): ", err.Error())
+		log.Error("getEventTypeByDescription(): ", err.Error())
 		return nil, err
 	}
 
@@ -276,9 +257,9 @@ func (instance Event) getEventDataToRegister(code int) (*event.Event, error) {
 	chatGptCommand := "Gere um título que usando uma linguagem simples e direta seja chamativo para uma matéria " +
 		"jornalistica sobre um evento que tratou dos seguintes temas:"
 	purpose := fmt.Sprint("Generating the title of event ", code)
-	title, err := requestToChatGpt(chatGptCommand, eventTopics, purpose)
+	title, err := instance.chatGptApi.MakeRequest(chatGptCommand, eventTopics, purpose)
 	if err != nil {
-		log.Error("requestToChatGpt(): ", err.Error())
+		log.Error("chatGptApi.MakeRequest(): ", err.Error())
 		return nil, err
 	}
 	title = strings.Trim(title, "*\"")
@@ -290,7 +271,7 @@ func (instance Event) getEventDataToRegister(code int) (*event.Event, error) {
 		return nil, err
 	}
 
-	articleData, err := article.NewBuilder().Type(*articleType).Build()
+	articleData, err := article.NewBuilder().Type(*articleType).ReferenceDateTime(startsAt).Build()
 	if err != nil {
 		log.Errorf("Error validating article data for event %d: %s", code, err.Error())
 		return nil, err
@@ -352,16 +333,15 @@ func getEventLocation(eventData map[string]interface{}) (string, bool, error) {
 	return location, isInternal, nil
 }
 
-func (instance Event) getEventType(eventTypeDescription string) (*eventtype.EventType, string, error) {
-	eventTypesUrl := "https://dadosabertos.camara.leg.br/api/v2/referencias/eventos/codTipoEvento"
-	eventTypeSlice, err := requesters.GetDataSliceFromUrl(eventTypesUrl)
+func (instance Event) getEventTypeByDescription(eventTypeDescription string) (*eventtype.EventType, string, error) {
+	eventTypes, err := instance.chamberApi.GetEventTypes()
 	if err != nil {
-		log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetEventTypes(): ", err.Error())
 		return nil, "", err
 	}
 
 	var eventTypeCode string
-	for _, eventTypeMap := range eventTypeSlice {
+	for _, eventTypeMap := range eventTypes {
 		if fmt.Sprint(eventTypeMap["nome"]) == eventTypeDescription {
 			eventTypeCode = fmt.Sprint(eventTypeMap["cod"])
 			break
@@ -381,15 +361,14 @@ func (instance Event) getEventType(eventTypeDescription string) (*eventtype.Even
 
 func (instance Event) getEventSituationByDescription(eventSituationDescription string) (*eventsituation.EventSituation,
 	string, error) {
-	eventSituationsUrl := "https://dadosabertos.camara.leg.br/api/v2/referencias/situacoesEvento"
-	eventSituationSlice, err := requesters.GetDataSliceFromUrl(eventSituationsUrl)
+	eventSituations, err := instance.chamberApi.GetEventSituations()
 	if err != nil {
-		log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetEventSituations(): ", err.Error())
 		return nil, "", err
 	}
 
 	var eventSituationCode string
-	for _, eventSituationMap := range eventSituationSlice {
+	for _, eventSituationMap := range eventSituations {
 		if strings.TrimSpace(fmt.Sprint(eventSituationMap["nome"])) == eventSituationDescription {
 			eventSituationCode = fmt.Sprint(eventSituationMap["cod"])
 			break
@@ -850,11 +829,9 @@ func (instance Event) getEventsToUpdate(events []event.Event) ([]event.Event, er
 
 	var updatedEvents []event.Event
 	for _, eventCodeChunk := range eventCodeChunks {
-		urlOfTheEventsToUpdate := fmt.Sprintf("https://dadosabertos.camara.leg.br/api/v2/eventos?id=%s&itens=%d",
-			strings.Join(eventCodeChunk, ","), chunkSize)
-		eventsToUpdate, err := requesters.GetDataSliceFromUrl(urlOfTheEventsToUpdate)
+		eventsToUpdate, err := instance.chamberApi.GetEventsByCodes(eventCodeChunk)
 		if err != nil {
-			log.Error("requesters.GetDataSliceFromUrl(): ", err.Error())
+			log.Error("chamberApi.GetEventsByCodes(): ", err.Error())
 			return nil, nil
 		}
 

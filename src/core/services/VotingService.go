@@ -11,23 +11,29 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"vnc-summarizer/core/interfaces/repositories"
+	"vnc-summarizer/core/interfaces/chamber"
+	"vnc-summarizer/core/interfaces/chatgpt"
+	"vnc-summarizer/core/interfaces/postgres"
 	"vnc-summarizer/core/interfaces/services"
-	"vnc-summarizer/core/services/utils/converters"
-	"vnc-summarizer/core/services/utils/datetime"
-	"vnc-summarizer/core/services/utils/requesters"
+	"vnc-summarizer/utils/converters"
+	"vnc-summarizer/utils/requesters"
 )
 
 type Voting struct {
-	votingRepository       repositories.Voting
-	articleTypeRepository  repositories.ArticleType
+	chamberApi             chamber.Chamber
+	chatGptApi             chatgpt.ChatGpt
+	votingRepository       postgres.Voting
+	articleTypeRepository  postgres.ArticleType
 	legislativeBodyService services.LegislativeBody
 	propositionService     services.Proposition
 }
 
-func NewVotingService(votingRepository repositories.Voting, articleTypeRepository repositories.ArticleType,
-	legislativeBodyService services.LegislativeBody, propositionService services.Proposition) *Voting {
+func NewVotingService(chamberApi chamber.Chamber, chatGptApi chatgpt.ChatGpt, votingRepository postgres.Voting,
+	articleTypeRepository postgres.ArticleType, legislativeBodyService services.LegislativeBody,
+	propositionService services.Proposition) *Voting {
 	return &Voting{
+		chamberApi:             chamberApi,
+		chatGptApi:             chatGptApi,
 		votingRepository:       votingRepository,
 		articleTypeRepository:  articleTypeRepository,
 		legislativeBodyService: legislativeBodyService,
@@ -36,7 +42,7 @@ func NewVotingService(votingRepository repositories.Voting, articleTypeRepositor
 }
 
 func (instance Voting) RegisterNewVotes() {
-	codesOfTheMostRecentVotesReturned, err := getCodesOfTheMostRecentVotesRegisteredInTheChamber()
+	codesOfTheMostRecentVotesReturned, err := instance.getCodesOfTheMostRecentVotesRegisteredInTheChamber()
 	if err != nil {
 		log.Error("getCodesOfTheMostRecentVotesRegisteredInTheChamber(): ", err.Error())
 		return
@@ -70,36 +76,16 @@ func (instance Voting) RegisterNewVotes() {
 	return
 }
 
-func getCodesOfTheMostRecentVotesRegisteredInTheChamber() ([]string, error) {
+func (instance Voting) getCodesOfTheMostRecentVotesRegisteredInTheChamber() ([]string, error) {
 	log.Info("Starting the search for the most recent votes")
 
-	currentDateTime, err := datetime.GetCurrentDateTimeInBrazil()
+	mostRecentVotes, err := instance.chamberApi.GetMostRecentVotes()
 	if err != nil {
-		log.Error("datetime.GetCurrentDateTimeInBrazil(): ", err)
+		log.Error("chamberApi.GetMostRecentVotes(): ", err.Error())
 		return nil, err
 	}
 
-	var mostRecentVotesReturned []map[string]interface{}
-	for page := 1; ; page++ {
-		chunkSize := 100
-		urlOfTheMostRecentVotes := fmt.Sprintf(
-			"https://dadosabertos.camara.leg.br/api/v2/votacoes?&pagina=%d&itens=%d&dataInicio=%s&ordenarPor=id&ordem=asc",
-			page, chunkSize, currentDateTime.AddDate(0, 0, -1).Format("2006-01-02"),
-		)
-		mostRecentVotes, err := requesters.GetDataSliceFromUrl(urlOfTheMostRecentVotes)
-		if err != nil {
-			log.Error("requests.GetDataSliceFromUrl(): ", err.Error())
-			return nil, err
-		}
-
-		mostRecentVotesReturned = append(mostRecentVotesReturned, mostRecentVotes...)
-
-		if len(mostRecentVotes) < chunkSize {
-			break
-		}
-	}
-
-	votingCodes, err := extractVotingCodes(mostRecentVotesReturned)
+	votingCodes, err := extractVotingCodes(mostRecentVotes)
 	if err != nil {
 		log.Error("extractVotingCodes(): ", err.Error())
 		return nil, err
@@ -157,10 +143,9 @@ func (instance Voting) RegisterNewVotingByCode(code string) (*uuid.UUID, error) 
 func (instance Voting) getVotingDataToRegister(code string) (*voting.Voting, error) {
 	log.Info("Starting data search for voting ", code)
 
-	votingUrl := fmt.Sprint("https://dadosabertos.camara.leg.br/api/v2/votacoes/", code)
-	votingData, err := requesters.GetDataObjectFromUrl(votingUrl)
+	votingData, err := instance.chamberApi.GetVotingByCode(code)
 	if err != nil {
-		log.Error("requests.GetDataObjectFromUrl(): ", err.Error())
+		log.Error("chamberApi.GetVotingByCode(): ", err.Error())
 		return nil, err
 	}
 
@@ -180,9 +165,16 @@ func (instance Voting) getVotingDataToRegister(code string) (*voting.Voting, err
 		return nil, err
 	}
 
-	isApproved, err := strconv.ParseBool(fmt.Sprint(votingData["aprovacao"]))
-	if err != nil {
-		log.Errorf("Error converting result of voting %s to boolean: %s", code, err.Error())
+	var isApproved *bool
+	isApprovedAsString := fmt.Sprint(votingData["aprovacao"])
+	if resultAnnouncedAtAsString != "<nil>" {
+		isVotingApproved, err := strconv.ParseBool(isApprovedAsString)
+		if err != nil {
+			log.Errorf("Error converting result of voting %s to boolean: %s", code, err.Error())
+			return nil, err
+		}
+
+		isApproved = &isVotingApproved
 	}
 
 	legislativeBodyCode, err := converters.ToInt(votingData["idOrgao"])
@@ -240,9 +232,9 @@ func (instance Voting) getVotingDataToRegister(code string) (*voting.Voting, err
 		"direta, não possuindo mais do que 500 caracteres e sem referenciar quando ocorreu a votação. Matérias:\n\n",
 		result)
 	purpose := fmt.Sprint("Generating the description for voting ", code)
-	description, err := requestToChatGpt(chatGptCommand, contentOfArticles, purpose)
+	description, err := instance.chatGptApi.MakeRequest(chatGptCommand, contentOfArticles, purpose)
 	if err != nil {
-		log.Error("requestToChatGpt(): ", err.Error())
+		log.Error("chatGptApi.MakeRequest(): ", err.Error())
 		return nil, err
 	}
 
