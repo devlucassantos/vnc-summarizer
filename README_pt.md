@@ -2,9 +2,10 @@
 
 🌍 *[English](README.md) ∙ [Português](README_pt.md)*
 
-`vnc-summarizer` é o serviço responsável pelo software que sumariza as proposições exibidas na plataforma
-[Você na Câmara (VNC)](#você-na-câmara-vnc). Neste repositório você encontrará o código-fonte do software principal do
-VNC e também o container responsável por executar este código, deste modo você poderá facilmente rodar o projeto.
+`vnc-summarizer` é o serviço responsável pelo software que extrai os dados e sumariza as proposições disponibilizadas na
+plataforma [Você na Câmara (VNC)](#você-na-câmara-vnc). Neste repositório você encontrará o código-fonte do software
+principal do VNC e também o container responsável por executar este código, deste modo você poderá facilmente rodar o
+projeto.
 
 ## Como Executar
 

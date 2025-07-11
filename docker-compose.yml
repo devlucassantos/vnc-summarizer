@@ -5,28 +5,11 @@ services:
             context: .
             dockerfile: Dockerfile
             args:
-                GITHUB_USER: # REQUIRED
-                GITHUB_PASSWORD: # REQUIRED
+                GITHUB_USERNAME: # Fill in your GitHub username
+                GITHUB_ACCESS_TOKEN: # Fill in your GitHub access token
+        volumes:
+            - ./src/config/.env:/config/.env
         restart: always
-        environment:
-            APPLICATION_MODE: development
-            ACTIVE_ECONOMY_MODE: true 
-            DATABASE_URL: # OPTIONAL
-            POSTGRESQL_HOST: host.docker.internal
-            POSTGRESQL_PORT: 5435
-            POSTGRESQL_USER: vnc_postgresql_user
-            POSTGRESQL_PASSWORD: vnc_d4tab4s&
-            POSTGRESQL_DB: vnc_postgresql
-            VNC_PDF_CONTENT_EXTRACTOR_API_ADDRESS: http://host.docker.internal:8084
-            AWS_REGION: # REQUIRED
-            AWS_ACCESS_KEY_ID: # REQUIRED
-            AWS_SECRET_ACCESS_KEY: # REQUIRED
-            AWS_S3_BUCKET: # REQUIRED
-            OPENAI_API_KEY: # REQUIRED
-            OPENAI_CHATGPT_API_MODEL: gpt-4o
-            OPENAI_CHATGPT_API_REQUEST_LIMIT_PER_MINUTE: 3
-            OPENAI_CHATGPT_API_CHARACTER_LIMIT_PER_REQUEST: 100000
-            OPENAI_DALLE_API_MODEL: dall-e-3
         networks:
             - vnc_network
 
