@@ -4,9 +4,6 @@ services:
         build:
             context: .
             dockerfile: Dockerfile
-            args:
-                GITHUB_USERNAME: # Fill in your GitHub username
-                GITHUB_ACCESS_TOKEN: # Fill in your GitHub access token
         volumes:
             - ./src/config/.env:/config/.env
         restart: always
